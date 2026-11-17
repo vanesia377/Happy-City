@@ -17,14 +17,24 @@
   <div class="pill" title="Xu">🪙 <b id="h-coins">0</b></div>
   <div class="pill" title="Kim cương">💎 <b id="h-gems">0</b></div>
   <div class="pill click" id="h-energy-pill" title="Năng lượng">⚡ <b id="h-energy">0</b><small id="h-energy-t"></small></div>
-  <div class="pill" title="Hàng hóa">📦 <b id="h-goods">0</b></div>
+  <div class="pill click" id="h-goods-pill" title="Hàng hóa — chạm để mở chợ">📦 <b id="h-goods">0</b></div>
   <div class="pill" title="Dân số">👥 <b id="h-pop">0</b></div>
   <div class="pill" title="Độ hạnh phúc"><span id="h-face">😊</span> <b id="h-happy">100%</b></div>
 </div>
 
 <div id="tracker" class="click"></div>
 <div id="banner" class="hidden"><span id="banner-text"></span><button id="banner-done">Xong</button></div>
-<div id="info" class="hidden"></div>
+<div id="info" class="hidden"><div id="info-text"></div><div id="info-btns"></div></div>
+<div id="floats"></div>
+<div id="camctl">
+  <button data-cam="l" title="Xoay trái (Q)">↺</button>
+  <button data-cam="r" title="Xoay phải (E)">↻</button>
+  <button data-cam="up" title="Nhìn từ trên xuống">⤒</button>
+  <button data-cam="down" title="Nhìn ngang">⤓</button>
+  <button data-cam="in" title="Phóng to">＋</button>
+  <button data-cam="out" title="Thu nhỏ">－</button>
+  <button data-cam="reset" title="Về góc nhìn ban đầu">⌂</button>
+</div>
 <div id="toasts"></div>
 
 <div id="toolbar">
@@ -37,6 +47,8 @@
 </div>
 
 <div id="modal" class="hidden"><div id="modal-box"></div></div>
+<script src="vendor/three.min.js"></script>
+<script src="view3d.js"></script>
 <script src="game.js"></script>
 </body>
 </html>
