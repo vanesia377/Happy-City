@@ -40,6 +40,23 @@ const DEFS = {
   warehouse: { cat: 'infra', name: 'Kho hàng', s: 2, lvl: 3, cost: 800, store: 150, steps: 4, top: 1.6,
                style: 'house', o: { wall: '#ced4da', roof: '#6c757d', h: .8, rh: .5, rt: 'gable', inset: .15, win: '#8d99ae', sign: '📦' } },
 
+  // Chăn nuôi: cho ăn "feed" nông sản, sau "time" giây thu "n" sản phẩm "out"
+  coop:      { cat: 'ranch', name: 'Chuồng gà', s: 2, lvl: 3, cost: 600, feed: 4, time: 3 * MIN, out: 'egg', n: 3, steps: 3, top: 1.2, style: 'coop' },
+  cowbarn:   { cat: 'ranch', name: 'Trại bò sữa', s: 2, lvl: 6, cost: 2000, feed: 10, time: 10 * MIN, out: 'milk', n: 3, steps: 4, top: 1.7,
+               style: 'barn', o: { wall: '#c1121f', roof: '#6c584c', animal: 'cow' } },
+  sheepfarm: { cat: 'ranch', name: 'Trại cừu', s: 2, lvl: 8, cost: 3500, feed: 15, time: 20 * MIN, out: 'wool', n: 3, steps: 4, top: 1.7,
+               style: 'barn', o: { wall: '#dda15e', roof: '#606c38', animal: 'sheep' } },
+
+  // Nhà máy chế biến: biến sản phẩm thô thành hàng giá trị cao
+  bakery:    { cat: 'factory', name: 'Lò bánh mì', s: 2, lvl: 4, cost: 1500, steps: 4, top: 2.3, recipes: ['bread', 'cookie'],
+               style: 'factory', o: { wall: '#ffe8d6', roof: '#bc6c25', h: 1, sign: '🍞' } },
+  dairy:     { cat: 'factory', name: 'Nhà máy sữa', s: 2, lvl: 7, cost: 4000, steps: 5, top: 2.5, recipes: ['cheese', 'butter'],
+               style: 'factory', o: { wall: '#e0fbfc', roof: '#3d5a80', h: 1.2, sign: '🧀' } },
+  textile:   { cat: 'factory', name: 'Xưởng dệt', s: 2, lvl: 9, cost: 6000, steps: 5, top: 2.5, recipes: ['cloth', 'sweater'],
+               style: 'factory', o: { wall: '#f8edeb', roof: '#9d4edd', h: 1.2, sign: '🧶' } },
+  cakeshop:  { cat: 'factory', name: 'Xưởng bánh ngọt', s: 2, lvl: 12, cost: 12000, steps: 6, top: 2.7, recipes: ['cake'],
+               style: 'factory', o: { wall: '#ffc8dd', roof: '#cdb4db', h: 1.4, sign: '🎂' } },
+
   // Trang trí: happy = điểm hạnh phúc, bonus = % thu nhập cho công trình trong bán kính range
   tree:      { cat: 'deco', name: 'Cây xanh', s: 1, lvl: 1, cost: 50, happy: 1, bonus: 2, range: 1, steps: 0, top: 1.2, style: 'tree' },
   flowers:   { cat: 'deco', name: 'Bồn hoa', s: 1, lvl: 1, cost: 80, happy: 1, bonus: 3, range: 1, steps: 0, top: .5, style: 'flowers' },
@@ -60,6 +77,37 @@ const DEFS = {
 };
 Object.keys(DEFS).forEach(k => DEFS[k].id = k);
 
+// Sản phẩm chăn nuôi & chế biến (price = giá bán ở chợ)
+const ITEMS = {
+  egg:     { name: 'Trứng',    icon: '🥚', price: 12 },
+  milk:    { name: 'Sữa',      icon: '🥛', price: 30 },
+  wool:    { name: 'Len',      icon: '🧶', price: 55 },
+  bread:   { name: 'Bánh mì',  icon: '🍞', price: 45 },
+  cookie:  { name: 'Bánh quy', icon: '🍪', price: 75 },
+  cheese:  { name: 'Phô mai',  icon: '🧀', price: 110 },
+  butter:  { name: 'Bơ',       icon: '🧈', price: 90 },
+  cloth:   { name: 'Khăn len', icon: '🧣', price: 170 },
+  sweater: { name: 'Áo len',   icon: '🧥', price: 600 },
+  cake:    { name: 'Bánh kem', icon: '🎂', price: 700 },
+};
+// Công thức: in = nguyên liệu, goods = nông sản 📦 cần thêm, n = số lượng làm ra
+const RECIPES = {
+  bread:   { in: { egg: 2 }, goods: 10, time: 3 * MIN, n: 2, xp: 4 },
+  cookie:  { in: { egg: 3, milk: 1 }, goods: 10, time: 8 * MIN, n: 2, xp: 8 },
+  cheese:  { in: { milk: 3 }, time: 10 * MIN, n: 2, xp: 10 },
+  butter:  { in: { milk: 2 }, time: 6 * MIN, n: 1, xp: 6 },
+  cloth:   { in: { wool: 3 }, time: 15 * MIN, n: 2, xp: 14 },
+  sweater: { in: { cloth: 2, wool: 1 }, time: 30 * MIN, n: 1, xp: 25 },
+  cake:    { in: { bread: 2, cheese: 1, butter: 1, egg: 2 }, time: 40 * MIN, n: 1, xp: 30 },
+};
+// Cấp mở khóa của từng sản phẩm (dùng cho đơn hàng)
+const ITEM_LVL = {};
+for (const d of Object.values(DEFS)) if (d.out) ITEM_LVL[d.out] = Math.min(ITEM_LVL[d.out] ?? 99, d.lvl);
+for (const [id, r] of Object.entries(RECIPES)) {
+  const f = Object.values(DEFS).find(d => (d.recipes || []).includes(id));
+  ITEM_LVL[id] = Math.max(f.lvl, ...Object.keys(r.in).map(k => ITEM_LVL[k]));
+}
+
 const CROPS = [
   { id: 'cai',   name: 'Rau cải',  icon: '🥬', lvl: 1,  cost: 10,  time: 30,        yield: 8,    xp: 1,  shape: 'leaf',   color: '#95d5b2' },
   { id: 'carot', name: 'Cà rốt',   icon: '🥕', lvl: 2,  cost: 25,  time: 2 * MIN,   yield: 20,   xp: 2,  shape: 'root',   color: '#f77f00' },
@@ -71,7 +119,7 @@ const CROPS = [
 ];
 const CROP = Object.fromEntries(CROPS.map(c => [c.id, c]));
 
-const TABS = [['house', '🏠 Nhà ở'], ['shop', '🏪 Kinh doanh'], ['infra', '🛣️ Hạ tầng'], ['deco', '🌳 Trang trí'], ['civic', '🏛️ Công cộng']];
+const TABS = [['house', '🏠 Nhà ở'], ['shop', '🏪 Kinh doanh'], ['infra', '🛣️ Hạ tầng'], ['ranch', '🐄 Chăn nuôi'], ['factory', '🏭 Chế biến'], ['deco', '🌳 Trang trí'], ['civic', '🏛️ Công cộng']];
 
 const B = id => s => s.stats.built[id] || 0;
 const QUESTS = [
@@ -88,9 +136,14 @@ const QUESTS = [
   { t: 'Thị trưởng tập sự', d: 'Đạt cấp 3', k: s => s.level, n: 3, r: { coins: 400, gems: 1 } },
   { t: 'Vươn rộng', d: 'Mở rộng đất 1 lần', k: s => s.stats.expand, n: 1, r: { coins: 500, xp: 50 } },
   { t: 'Kho bãi', d: 'Xây 1 Kho hàng', k: B('warehouse'), n: 1, r: { coins: 400, xp: 40 } },
+  { t: 'Tiếng gà gáy', d: 'Xây 1 Chuồng gà (tab 🐄 Chăn nuôi)', k: B('coop'), n: 1, r: { coins: 300, xp: 30 } },
+  { t: 'Nhặt trứng', d: 'Thu sản phẩm từ chuồng trại 3 lần', k: s => s.stats.animal, n: 3, r: { coins: 300, xp: 30 } },
   { t: 'Cà phê sáng', d: 'Xây 1 Quán cà phê', k: B('cafe'), n: 1, r: { coins: 400, xp: 40 } },
   { t: 'Lên đời', d: 'Nâng cấp 1 nhà hoặc cửa hàng (chọn công trình rồi bấm Nâng cấp)', k: s => s.stats.upgrade, n: 1, r: { coins: 500, xp: 50 } },
   { t: 'Diệt sâu', d: 'Bắt sâu trên ruộng 3 lần', k: s => s.stats.bugs, n: 3, r: { coins: 500, xp: 50, gems: 1 } },
+  { t: 'Bánh mì nóng hổi', d: 'Xây 1 Lò bánh mì (tab 🏭 Chế biến)', k: B('bakery'), n: 1, r: { coins: 600, xp: 60 } },
+  { t: 'Mẻ bánh đầu', d: 'Chế biến sản phẩm 3 lần', k: s => s.stats.craft, n: 3, r: { coins: 600, xp: 60, gems: 1 } },
+  { t: 'Xe tải lên đường', d: 'Hoàn thành 3 đơn hàng ở 🧺 Chợ', k: s => s.stats.orders, n: 3, r: { coins: 800, xp: 80 } },
   { t: 'Buôn may bán đắt', d: 'Thu tiền cửa hàng 10 lần', k: s => s.stats.sales, n: 10, r: { coins: 600, xp: 60, gems: 1 } },
   { t: 'Đông vui', d: 'Đạt dân số 100', k: () => population(), n: 100, r: { coins: 800, xp: 80 } },
   { t: 'Trăm năm trồng người', d: 'Xây 1 Trường học', k: B('school'), n: 1, r: { coins: 1000, xp: 100, gems: 2 } },
@@ -99,6 +152,9 @@ const QUESTS = [
   { t: 'Bội thu', d: 'Thu hoạch nông sản 40 lần', k: s => s.stats.harvest, n: 40, r: { coins: 2000, xp: 200 } },
   { t: 'Đất rộng', d: 'Mở rộng đất 3 lần', k: s => s.stats.expand, n: 3, r: { coins: 3000, xp: 300, gems: 2 } },
   { t: 'Phố sang', d: 'Nâng cấp công trình 6 lần', k: s => s.stats.upgrade, n: 6, r: { coins: 3000, xp: 300, gems: 2 } },
+  { t: 'Đồng cỏ xanh', d: 'Xây 1 Trại bò sữa', k: B('cowbarn'), n: 1, r: { coins: 2000, xp: 200 } },
+  { t: 'Ông chủ nhà máy', d: 'Chế biến sản phẩm 30 lần', k: s => s.stats.craft, n: 30, r: { coins: 4000, xp: 400, gems: 2 } },
+  { t: 'Nhà buôn uy tín', d: 'Hoàn thành 20 đơn hàng', k: s => s.stats.orders, n: 20, r: { coins: 5000, xp: 500, gems: 3 } },
   { t: 'Thị trưởng kỳ cựu', d: 'Đạt cấp 10', k: s => s.level, n: 10, r: { coins: 5000, gems: 3 } },
   { t: 'Đô thị sầm uất', d: 'Đạt dân số 600', k: () => population(), n: 600, r: { coins: 8000, xp: 500, gems: 3 } },
   { t: 'Thiên đường mua sắm', d: 'Xây 1 Trung tâm mua sắm', k: B('mall'), n: 1, r: { coins: 10000, xp: 800, gems: 5 } },
@@ -122,7 +178,8 @@ function newState() {
   const s = {
     v: 1, coins: 1000, gems: 10, energy: 26, energyAt: Date.now(), xp: 0, level: 1, goods: 20, land: START_LAND,
     buildings: [], nextId: 1, quest: 0, mute: false, dayNight: true, shadows: true,
-    stats: { built: {}, rent: 0, sales: 0, harvest: 0, supply: 0, deco: 0, expand: 0, water: 0, bugs: 0, upgrade: 0 },
+    stats: { built: {}, rent: 0, sales: 0, harvest: 0, supply: 0, deco: 0, expand: 0, water: 0, bugs: 0, upgrade: 0, animal: 0, craft: 0, orders: 0 },
+    items: {}, orders: [],
     daily: { last: '', streak: 0 },
   };
   const o = (WORLD - START_LAND) / 2;
@@ -137,7 +194,8 @@ function load() {
     if (raw) {
       const s = JSON.parse(raw);
       if (s && s.v === 1 && Array.isArray(s.buildings)) {
-        s.stats = Object.assign({ water: 0, bugs: 0, upgrade: 0 }, s.stats); // bản lưu cũ
+        s.stats = Object.assign({ water: 0, bugs: 0, upgrade: 0, animal: 0, craft: 0, orders: 0 }, s.stats); // bản lưu cũ
+        s.items = s.items || {}; s.orders = s.orders || [];
         return s;
       }
     }
@@ -352,9 +410,63 @@ function act(b) {
     floatAt(b, '+' + fmt(amt) + '🪙', '#fff3b0'); sfx.coin(); addXp(Math.max(1, Math.round(d.earn / 20)));
     return true;
   }
+  if (d.cat === 'ranch') return actRanch(b, d, now);
+  if (d.cat === 'factory') return actFactory(b, d, now);
   if (b.type === 'farm') return actFarm(b, now);
   return false;
 }
+
+// ───────────────────────── Chăn nuôi & chế biến ─────────────────────────
+const have = id => S.items[id] || 0;
+const addItem = (id, n) => { S.items[id] = have(id) + n; };
+function actRanch(b, d, now) {
+  if (!b.fed) {
+    if (S.goods < d.feed) { toast(`Cần ${d.feed} 📦 nông sản làm thức ăn — hãy thu hoạch thêm hoặc mua ở chợ`); sfx.bad(); return true; }
+    if (!useEnergy()) return true;
+    S.goods -= d.feed; b.fed = true; b.readyAt = now + d.time * 1000;
+    floatAt(b, '🌾 Cho ăn −' + d.feed + '📦'); sfx.pop();
+    return true;
+  }
+  if (now < b.readyAt) return false;
+  if (!useEnergy()) return true;
+  addItem(d.out, d.n); b.fed = false; S.stats.animal++;
+  floatAt(b, `+${d.n} ${ITEMS[d.out].icon}`, '#fff3b0'); sfx.pop(); addXp(Math.max(2, Math.round(d.feed / 2)));
+  return true;
+}
+function actFactory(b, d, now) {
+  if (!b.job) { openFactory(b); return true; }
+  if (now < b.readyAt) return false;
+  if (!useEnergy()) return true;
+  const r = RECIPES[b.job];
+  addItem(b.job, r.n); S.stats.craft++;
+  floatAt(b, `+${r.n} ${ITEMS[b.job].icon}`, '#fff3b0'); sfx.coin(); addXp(r.xp);
+  b.job = null;
+  return true;
+}
+const recipeOk = r => Object.entries(r.in).every(([k, n]) => have(k) >= n) && S.goods >= (r.goods || 0);
+function startJob(b, id) {
+  const r = RECIPES[id];
+  if (!b || b.job || !recipeOk(r)) { sfx.bad(); return; }
+  if (!useEnergy()) return;
+  for (const [k, n] of Object.entries(r.in)) S.items[k] -= n;
+  S.goods -= r.goods || 0; b.job = id; b.readyAt = Date.now() + r.time * 1000;
+  floatAt(b, '⚙️ ' + ITEMS[id].name); sfx.build(); closeModal();
+}
+function newOrder() {
+  const pool = Object.keys(ITEMS).filter(id => S.level >= ITEM_LVL[id]);
+  if (!pool.length) return null;
+  const k = 1 + Math.floor(Math.random() * Math.min(3, pool.length)), items = {};
+  let value = 0;
+  while (Object.keys(items).length < k) {
+    const id = pool[Math.floor(Math.random() * pool.length)];
+    if (items[id]) continue;
+    items[id] = clamp(Math.round((2 + Math.random() * 4) * 30 / ITEMS[id].price), 1, 12);
+    value += items[id] * ITEMS[id].price;
+  }
+  return { items, coins: Math.round(value * 1.5), xp: Math.round(value / 15) + 3 };
+}
+function refreshOrders() { while (S.orders.length < 3) { const o = newOrder(); if (!o) break; S.orders.push(o); } }
+const orderOk = o => Object.entries(o.items).every(([k, n]) => have(k) >= n);
 function actFarm(b, now) {
   const st = farmInfo(b, now);
   if (st.state === 'empty') { openCrops(b); return true; }
@@ -427,6 +539,16 @@ function statusOf(b) {
     if (!b.supplied) return { icon: '📦', text: `Cần ${d.need} hàng hóa để mở bán` };
     return now >= b.readyAt ? { icon: '🪙', text: 'Sẵn sàng thu tiền' } : { text: 'Đang bán, còn ' + fmtTime((b.readyAt - now) / 1000) };
   }
+  if (d.cat === 'ranch') {
+    const it = ITEMS[d.out];
+    if (!b.fed) return { icon: '🌾', text: `Vật nuôi đói — chạm để cho ăn (${d.feed} 📦, 1⚡)` };
+    return now >= b.readyAt ? { icon: it.icon, text: `Chạm để thu ${d.n} ${it.name}` } : { text: `Đang cho ${it.name.toLowerCase()}, còn ${fmtTime((b.readyAt - now) / 1000)}` };
+  }
+  if (d.cat === 'factory') {
+    if (!b.job) return { icon: '⚙️', text: 'Nhà máy đang nghỉ — chạm để chọn sản phẩm' };
+    const it = ITEMS[b.job];
+    return now >= b.readyAt ? { icon: it.icon, text: `${it.name} đã xong — chạm để lấy` } : { text: `Đang làm ${it.name}, còn ${fmtTime((b.readyAt - now) / 1000)}` };
+  }
   if (b.type === 'farm') {
     const st = farmInfo(b, now);
     if (st.state === 'empty') return { icon: '🌱', text: 'Ruộng trống — chạm để gieo trồng' };
@@ -446,7 +568,7 @@ function statusOf(b) {
 // ───────────────────────── Giao diện ─────────────────────────
 const mode = { name: 'idle', type: null };
 let moving = null, moveFrom = null, hover = null, selected = null;
-let shopTab = 'house', cropFarm = null, witherFarm = null, sellTarget = null;
+let shopTab = 'house', cropFarm = null, witherFarm = null, sellTarget = null, factoryTarget = null, marketTab = 'goods';
 
 function setMode(name, type) {
   if (moving) { moving.x = moveFrom.x; moving.y = moveFrom.y; moving = null; rebuildGrid(); }
@@ -463,11 +585,13 @@ function openModal(title, html, center, tabs) {
   $('modal-box').innerHTML = `<div class="m-head"><span>${title}</span><button data-close>✕</button></div>${tabs || ''}<div class="m-body ${center ? 'center' : ''}">${html}</div>`;
   $('modal').classList.remove('hidden');
 }
-function closeModal() { $('modal').classList.add('hidden'); cropFarm = null; witherFarm = null; }
+function closeModal() { $('modal').classList.add('hidden'); cropFarm = null; witherFarm = null; factoryTarget = null; }
 
 function statLine(d) {
   if (d.cat === 'house') return `👥 +${d.pop} · 🪙 ${fmt(d.earn)} / ${fmtTime(d.time)}`;
   if (d.cat === 'shop') return `📦 ${d.need} → 🪙 ${fmt(d.earn)} / ${fmtTime(d.time)}`;
+  if (d.cat === 'ranch') return `${d.feed}📦 → ${d.n} ${ITEMS[d.out].icon} / ${fmtTime(d.time)}`;
+  if (d.cat === 'factory') return 'Làm ra: ' + d.recipes.map(r => ITEMS[r].icon + ' ' + ITEMS[r].name).join(', ');
   if (d.id === 'road') return 'Nối nhà và cửa hàng';
   if (d.id === 'farm') return 'Trồng trọt lấy hàng hóa';
   if (d.store) return `📦 +${d.store} sức chứa`;
@@ -494,16 +618,51 @@ function openCrops(b) {
   cropFarm = b;
 }
 const MARKET = { sell: 1.5, buy: 8 };
-function openMarket() {
-  const cap = storage();
-  const row = (kind, n) => {
-    const price = Math.round(n * MARKET[kind]);
-    const ok = kind === 'sell' ? S.goods >= n : S.coins >= price && S.goods + n <= cap;
-    return `<button class="btn ${kind === 'sell' ? '' : 'alt2'}" data-do="mkt" data-kind="${kind}" data-n="${n}" ${ok ? '' : 'disabled'}>${kind === 'sell' ? 'Bán' : 'Mua'} ${n} 📦 ${kind === 'sell' ? '→ +' : '← −'}🪙 ${fmt(price)}</button>`;
-  };
-  openModal('Chợ nông sản', `<div class="big">🧺</div><p>Kho: <b>${fmt(S.goods)}/${fmt(cap)}</b> 📦 · Xu: <b>${fmt(S.coins)}</b> 🪙</p>
-    <p>${row('sell', 10)}${row('sell', 50)}${row('sell', 200)}</p><p>${row('buy', 10)}${row('buy', 50)}${row('buy', 200)}</p>
-    <p class="hint">Bán hàng thừa khi kho đầy, hoặc mua gấp khi cửa hàng thiếu hàng.</p>`, true);
+const needSpan = (ok, txt) => `<span class="${ok ? 'ok' : 'miss'}">${txt}</span>`;
+function openFactory(b) {
+  const d = DEFS[b.type];
+  const cards = d.recipes.map(id => {
+    const r = RECIPES[id], it = ITEMS[id], ok = recipeOk(r);
+    const need = Object.entries(r.in).map(([k, n]) => needSpan(have(k) >= n, `${ITEMS[k].icon} ${have(k)}/${n}`))
+      .concat(r.goods ? [needSpan(S.goods >= r.goods, `📦 ${fmt(S.goods)}/${r.goods}`)] : []).join(' ');
+    return `<div class="card ${ok ? '' : 'poor'}" data-recipe="${id}"><div class="ico">${it.icon}</div>
+      <div class="nm">${r.n} ${it.name}</div><div class="st">${need}<br>⏱ ${fmtTime(r.time)} · bán 🪙 ${fmt(it.price)}</div>
+      <div class="pr">${ok ? 'Sản xuất (1⚡)' : 'Thiếu nguyên liệu'}</div></div>`;
+  }).join('');
+  openModal(d.name, `<p class="hint">Chọn sản phẩm để làm. Nguyên liệu lấy từ 🐄 chuồng trại, 📦 nông sản và các nhà máy khác. Thành phẩm bán ở 🧺 Chợ hoặc giao theo đơn hàng.</p><div class="grid">${cards}</div>`);
+  factoryTarget = b;
+}
+function openMarket(tab) {
+  marketTab = tab || marketTab;
+  const tabs = `<div class="tabs">${[['goods', '🧺 Nông sản'], ['items', '🏷️ Kho sản phẩm'], ['orders', '🚚 Đơn hàng']]
+    .map(([k, n]) => `<button data-mtab="${k}" class="${k === marketTab ? 'on' : ''}">${n}</button>`).join('')}</div>`;
+  let html;
+  if (marketTab === 'goods') {
+    const cap = storage();
+    const row = (kind, n) => {
+      const price = Math.round(n * MARKET[kind]);
+      const ok = kind === 'sell' ? S.goods >= n : S.coins >= price && S.goods + n <= cap;
+      return `<button class="btn ${kind === 'sell' ? '' : 'alt2'}" data-do="mkt" data-kind="${kind}" data-n="${n}" ${ok ? '' : 'disabled'}>${kind === 'sell' ? 'Bán' : 'Mua'} ${n} 📦 ${kind === 'sell' ? '→ +' : '← −'}🪙 ${fmt(price)}</button>`;
+    };
+    html = `<div class="center"><div class="big">🧺</div><p>Kho: <b>${fmt(S.goods)}/${fmt(cap)}</b> 📦 · Xu: <b>${fmt(S.coins)}</b> 🪙</p>
+      <p>${row('sell', 10)}${row('sell', 50)}${row('sell', 200)}</p><p>${row('buy', 10)}${row('buy', 50)}${row('buy', 200)}</p>
+      <p class="hint">Bán nông sản thừa khi kho đầy, hoặc mua gấp khi cửa hàng và vật nuôi thiếu.</p></div>`;
+  } else if (marketTab === 'items') {
+    const ids = Object.keys(ITEMS).filter(id => have(id) > 0);
+    html = ids.length ? `<div class="grid">${ids.map(id => `<div class="card"><div class="ico">${ITEMS[id].icon}</div>
+      <div class="nm">${ITEMS[id].name}</div><div class="st">Có: <b>${have(id)}</b> · 🪙 ${fmt(ITEMS[id].price)}/cái</div>
+      <div><button class="btn sm" data-do="sellitem" data-id="${id}" data-n="1">Bán 1</button><button class="btn sm" data-do="sellitem" data-id="${id}" data-n="all">Bán hết</button></div></div>`).join('')}</div>`
+      : '<p class="center">Kho sản phẩm đang trống. Hãy xây 🐄 chuồng trại và 🏭 nhà máy chế biến!</p>';
+  } else {
+    refreshOrders();
+    const first = Math.min(...Object.values(ITEM_LVL));
+    html = !S.orders.length ? `<p class="center">🚚 Đơn hàng mở khóa ở cấp ${first}, khi có thể xây chuồng trại.</p>`
+      : '<p class="hint">Giao đủ hàng để nhận nhiều xu hơn bán lẻ ở chợ. Không thích đơn nào thì đổi đơn khác.</p>' + S.orders.map((o, i) => `<div class="quest ${orderOk(o) ? 'cur' : ''}"><b>🚚 Đơn hàng ${i + 1}</b>
+        <div>${Object.entries(o.items).map(([k, n]) => needSpan(have(k) >= n, `${ITEMS[k].icon} ${ITEMS[k].name} ${have(k)}/${n}`)).join(' · ')}</div>
+        <div class="rw">Thưởng: 🪙 ${fmt(o.coins)} · ⭐ ${o.xp} XP</div>
+        <button class="btn" data-do="order" data-i="${i}" ${orderOk(o) ? '' : 'disabled'}>Giao hàng</button><button class="btn alt" data-do="skiporder" data-i="${i}">Đổi đơn khác</button></div>`).join('');
+  }
+  openModal('Chợ', html, false, tabs);
 }
 const rewardText = r => [r.coins && `🪙 ${fmt(r.coins)}`, r.xp && `⭐ ${r.xp} XP`, r.gems && `💎 ${r.gems}`].filter(Boolean).join(' · ');
 const questProg = q => Math.min(q.n, q.k(S));
@@ -544,7 +703,9 @@ function openMenu() {
     <li>🏠 <b>Nhà ở</b> tăng dân số và cho thu tiền thuê định kỳ. 🏪 <b>Cửa hàng</b> cần 📦 hàng hóa để mở bán.</li>
     <li>🌾 <b>Ruộng</b>: gieo hạt → 💧 tưới nước (lớn nhanh hơn ${WATER_BOOST * 100}%) → 🐛 bắt sâu → thu hoạch. Cây chín để quá lâu sẽ 🥀 <b>héo</b>; mưa sẽ tưới giúp bạn.</li>
     <li>⬆️ Chọn nhà hoặc cửa hàng để <b>nâng cấp</b> (tối đa cấp ${MAX_LV}, mỗi cấp +50% thu nhập và dân số).</li>
-    <li>🧺 Chạm vào ô 📦 trên cùng để mở <b>chợ</b> mua bán hàng hóa.</li>
+    <li>🐄 <b>Chăn nuôi</b>: cho vật nuôi ăn bằng 📦 nông sản, chờ rồi thu trứng, sữa, len.</li>
+    <li>🏭 <b>Nhà máy chế biến</b>: biến trứng, sữa, len thành bánh mì, phô mai, áo len, bánh kem… có giá trị cao hơn.</li>
+    <li>🧺 <b>Chợ</b>: mua bán nông sản, bán sản phẩm, và giao 🚚 <b>đơn hàng</b> để nhận nhiều xu và XP.</li>
     <li>🛣️ Nhà và cửa hàng phải <b>kề đường</b>. 🌳 Trang trí và công trình công cộng tăng 😊 hạnh phúc và thu nhập.</li>
     <li>⚡ Mỗi thao tác tốn 1 năng lượng, hồi dần theo thời gian.</li>
     <li>🎥 <b>Góc nhìn 3D</b>: kéo để di chuyển · chuột phải (hoặc Shift) + kéo để xoay/nghiêng · lăn chuột để thu phóng · trên điện thoại chụm/xoay hai ngón · phím Q/E xoay, mũi tên di chuyển.</li></ul>
@@ -584,6 +745,7 @@ function updateHud() {
     tr.innerHTML = `<b>📜 ${q.t}</b>${done ? '🎁 Chạm để nhận thưởng!' : `${q.d} (${fmt(p)}/${fmt(q.n)})`}`;
     tr.classList.toggle('done', done); $('q-badge').classList.toggle('hidden', !done);
   } else { tr.innerHTML = '<b>🏆 Đã xong mọi nhiệm vụ</b>'; tr.classList.remove('done'); $('q-badge').classList.add('hidden'); }
+  $('m-badge').classList.toggle('hidden', !S.orders.some(orderOk));
   const inf = $('info');
   if (mode.name === 'idle' && selected && S.buildings.includes(selected)) {
     const b = selected, d = DEFS[b.type], st = statusOf(b), lv = b.lv || 1, up = d.cat === 'house' || d.cat === 'shop';
@@ -692,6 +854,7 @@ $('toolbar').addEventListener('click', e => {
   if (a === 'shop') { setMode('idle'); openShop(); }
   else if (a === 'move' || a === 'sell') setMode(mode.name === a ? 'idle' : a);
   else if (a === 'quests') openQuests();
+  else if (a === 'market') openMarket();
   else if (a === 'expand') openExpand();
   else if (a === 'menu') openMenu();
 });
@@ -706,7 +869,7 @@ $('info-btns').addEventListener('click', e => {
 $('banner-done').addEventListener('click', () => setMode('idle'));
 $('tracker').addEventListener('click', () => { const q = QUESTS[S.quest]; if (q && questProg(q) >= q.n) claimQuest(); else openQuests(); });
 $('h-energy-pill').addEventListener('click', askEnergy);
-$('h-goods-pill').addEventListener('click', openMarket);
+$('h-goods-pill').addEventListener('click', () => openMarket('goods'));
 $('modal').addEventListener('click', e => {
   const t = e.target;
   if (t === $('modal') || t.closest('[data-close]')) return closeModal();
@@ -718,6 +881,8 @@ $('modal').addEventListener('click', e => {
     if (S.coins < d.cost) { sfx.bad(); return toast('Không đủ xu!'); }
     closeModal(); return setMode('place', d.id);
   }
+  const mt = t.closest('[data-mtab]'); if (mt) return openMarket(mt.dataset.mtab);
+  const rec = t.closest('[data-recipe]'); if (rec && factoryTarget) { startJob(factoryTarget, rec.dataset.recipe); updateHud(); save(); return; }
   const crop = t.closest('[data-crop]'); if (crop && cropFarm) { plant(cropFarm, crop.dataset.crop); updateHud(); return; }
   const el = t.closest('[data-do]'); if (!el || el.disabled) return;
   switch (el.dataset.do) {
@@ -730,8 +895,24 @@ $('modal').addEventListener('click', e => {
       const n = +el.dataset.n, kind = el.dataset.kind, price = Math.round(n * MARKET[kind]);
       if (kind === 'sell' && S.goods >= n) { S.goods -= n; S.coins += price; sfx.coin(); }
       else if (kind === 'buy' && S.coins >= price && S.goods + n <= storage()) { S.goods += n; S.coins -= price; sfx.pop(); }
-      openMarket(); break;
+      openMarket('goods'); break;
     }
+    case 'sellitem': {
+      const id = el.dataset.id, n = el.dataset.n === 'all' ? have(id) : Math.min(+el.dataset.n, have(id));
+      if (n > 0) { S.items[id] -= n; S.coins += n * ITEMS[id].price; sfx.coin(); }
+      openMarket('items'); break;
+    }
+    case 'order': {
+      const i = +el.dataset.i, o = S.orders[i];
+      if (o && orderOk(o)) {
+        for (const [k, n] of Object.entries(o.items)) S.items[k] -= n;
+        S.coins += o.coins; S.stats.orders++; S.orders.splice(i, 1);
+        sfx.win(); toast(`🚚 Đã giao hàng: +${fmt(o.coins)} xu`);
+        openMarket('orders'); addXp(o.xp);
+      }
+      break;
+    }
+    case 'skiporder': S.orders.splice(+el.dataset.i, 1); openMarket('orders'); break;
     case 'expand': { const x = expandInfo(); if (!x.max && S.level >= x.lvl && S.coins >= x.cost) { S.coins -= x.cost; S.land += 2; S.stats.expand++; sfx.win(); toast('Đã mở rộng đất!'); closeModal(); } break; }
     case 'toggle': { const k = el.dataset.key; if (k === 'sound') S.mute = !S.mute; else S[k] = S[k] === false; openMenu(); break; }
     case 'reset': openModal('Chơi lại', '<p>Xóa toàn bộ thành phố và bắt đầu lại?</p><button class="btn red" data-do="reset2">Xóa và chơi lại</button><button class="btn alt" data-close>Hủy</button>', true); break;

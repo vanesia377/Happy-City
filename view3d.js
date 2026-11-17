@@ -150,6 +150,60 @@ const View = (() => {
       default: ball(x, y, z + .13, .16, c.color, .85); ball(x + .14, y - .1, z + .04, .07, green, .4);
     }
   }
+
+  // ───── vật nuôi & hàng rào ─────
+  function fence(x0, y0, x1, y1, col = '#e9d8a6') {
+    const h0 = .12, h1 = .22, t = .025;
+    box(x0, y0 - t, x1, y0 + t, h0, h0 + .04, col); box(x0, y1 - t, x1, y1 + t, h0, h0 + .04, col);
+    box(x0 - t, y0, x0 + t, y1, h0, h0 + .04, col); box(x1 - t, y0, x1 + t, y1, h0, h0 + .04, col);
+    const n = 4;
+    for (let i = 0; i <= n; i++) {
+      const x = x0 + (x1 - x0) * i / n, y = y0 + (y1 - y0) * i / n;
+      for (const [px, py] of [[x, y0], [x, y1], [x0, y], [x1, y]]) box(px - .03, py - .03, px + .03, py + .03, 0, h1 + .05, col);
+    }
+  }
+  function animal(kind, x, y) {
+    const grp = new THREE.Group(), root = G; G = grp;
+    if (kind === 'chicken') {
+      ball(0, 0, .13, .09, '#ffffff', .85); ball(.08, 0, .24, .055, '#ffffff');
+      box(.07, -.012, .1, .012, .29, .33, '#e63946'); box(.13, -.015, .16, .015, .22, .25, '#ffb703');
+      box(-.02, -.04, 0, -.02, 0, .07, '#ffb703'); box(-.02, .02, 0, .04, 0, .07, '#ffb703');
+    } else if (kind === 'cow') {
+      for (const [lx, ly] of [[-.14, -.07], [-.14, .07], [.12, -.07], [.12, .07]]) box(lx - .03, ly - .03, lx + .03, ly + .03, 0, .2, '#3d405b');
+      box(-.21, -.11, .19, .11, .2, .44, '#ffffff'); box(-.08, -.115, .07, .115, .27, .4, '#2b2d42');
+      box(.17, -.08, .33, .08, .32, .5, '#ffffff'); box(.3, -.065, .37, .065, .32, .41, '#ffb3c6');
+      box(.2, -.11, .24, -.08, .48, .55, '#f1faee'); box(.2, .08, .24, .11, .48, .55, '#f1faee');
+    } else {
+      for (const [lx, ly] of [[-.1, -.06], [-.1, .06], [.09, -.06], [.09, .06]]) box(lx - .025, ly - .025, lx + .025, ly + .025, 0, .17, '#2b2d42');
+      ball(0, 0, .3, .17, '#f8f9fa', .8); ball(-.09, .05, .36, .1, '#ffffff'); ball(.07, -.05, .37, .1, '#ffffff');
+      box(.15, -.055, .27, .055, .3, .43, '#2b2d42');
+    }
+    G = root; grp.position.set(x, 0, y); grp.rotation.y = Math.random() * 6.28; G.add(grp);
+    return grp;
+  }
+  function wander(list, x0, y0, x1, y1, speed) {
+    const st = list.map(a => ({ a, tx: a.position.x, tz: a.position.z, wait: Math.random() * 2000 }));
+    let last = 0;
+    return t => {
+      const dt = last ? Math.min(.1, (t - last) / 1000) : 0; last = t;
+      for (const s of st) {
+        const p = s.a.position, dx = s.tx - p.x, dz = s.tz - p.z, d = Math.hypot(dx, dz);
+        if (d < .02) {
+          p.y = 0; s.wait -= dt * 1000;
+          if (s.wait <= 0) { s.tx = x0 + Math.random() * (x1 - x0); s.tz = y0 + Math.random() * (y1 - y0); s.wait = 800 + Math.random() * 3000; }
+          continue;
+        }
+        const k = Math.min(d, speed * dt);
+        p.x += dx / d * k; p.z += dz / d * k; p.y = Math.abs(Math.sin(t / 90)) * .025;
+        s.a.rotation.y = Math.atan2(-dz, dx);
+      }
+    };
+  }
+  function trough(x0, y0, x1, y1, full) {
+    box(x0, y0, x1, y1, 0, .13, '#9c6644');
+    flat(x0 + .03, y0 + .03, x1 - .03, y1 - .03, .135, full ? '#e9c46a' : '#6f4528');
+  }
+
   const STYLES = {
     house(s, o) {
       const a = o.inset ?? .14, b = s - a, h = o.h, win = o.win || '#fff3b0';
@@ -235,6 +289,47 @@ const View = (() => {
       for (const [x, y] of [[.2, .2], [2.8, .2], [.2, 2.8], [2.8, 2.8]]) { cyl(x, y, .9, 1.6, .03, '#6c757d'); add(GEO.box, mat('#ffe066', true), .2, .12, .2, x, 1.65 * HS, y); }
       sign(1.5, 1.5, 1.1, '⚽', .5);
     },
+    coop(s, o, b) {
+      flat(.05, .05, s - .05, s - .05, .005, '#b5e48c'); fence(.08, .08, s - .08, s - .08);
+      box(.2, .2, 1.0, .85, 0, .55, '#f4e1c1'); gable(.14, .14, 1.06, .91, .55, .95, '#c8553d');
+      box(1.0, .4, 1.03, .62, 0, .32, '#7f5539');
+      beam([1.02, .02, .5], [1.3, .22 * HS, .5], .03, '#bc8a5f');
+      trough(1.3, .25, 1.8, .42, b && b.fed);
+      const list = [animal('chicken', 1.4, 1.2), animal('chicken', .7, 1.5), animal('chicken', 1.6, 1.65), animal('chicken', 1.1, 1.0)];
+      if (!ghost) G.userData.anim = wander(list, .3, 1.0, 1.8, 1.8, .35);
+    },
+    barn(s, o, b) {
+      flat(.05, .05, s - .05, s - .05, .005, '#b5e48c'); fence(.08, .08, s - .08, s - .08);
+      box(.15, .15, .95, 1.1, 0, .85, o.wall); gable(.1, .1, 1.0, 1.15, .85, 1.35, o.roof);
+      box(.95, .38, .98, .87, 0, .62, '#fefae0'); box(.96, .43, .985, .82, .05, .57, '#7f5539');
+      cyl(.35, 1.45, 0, 1.5, .2, '#adb5bd'); add(GEO.cone, mat('#6c757d'), .22, .3 * HS, .22, .35, 1.65 * HS, 1.45);
+      trough(1.2, .2, 1.85, .35, b && b.fed);
+      const list = [animal(o.animal, 1.4, .8), animal(o.animal, 1.5, 1.5), animal(o.animal, .9, 1.65)];
+      if (!ghost) G.userData.anim = wander(list, 1.2, .55, 1.75, 1.75, .18);
+    },
+    factory(s, o, b) {
+      const a = .12, e = s - a, h = o.h;
+      flat(.04, .04, s - .04, s - .04, .005, '#ced4da');
+      walls(a, a, e, e, 0, h, o.wall, '#caf0f8', 4, 2, false);
+      for (let i = 0; i < 3; i++) gable(a + i * (e - a) / 3, a, a + (i + 1) * (e - a) / 3, e, h, h + .35, o.roof);
+      const cx = e - .32, cz = a + .32;
+      cyl(cx, cz, h, h + 1.15, .12, '#8d99ae'); cyl(cx, cz, h + .95, h + 1.08, .13, '#e63946');
+      box(e + .02, .5, e + .2, .9, 0, .08, '#6c757d');
+      for (let i = 0; i < 3; i++) box(e + .04, .52 + i * .13, e + .16, .62 + i * .13, .08, .2, '#bc8a5f');
+      sign(.6, e, h + .75, o.sign, .6, true);
+      if (ghost) return;
+      const puffs = [];
+      for (let i = 0; i < 5; i++) { const p = ball(cx, cz, h + 1.2, .1, '#f1f3f5'); p.castShadow = false; puffs.push(p); }
+      G.userData.anim = t => {
+        const on = !!(b && b.job && Date.now() < b.readyAt);
+        puffs.forEach((p, i) => {
+          p.visible = on; if (!on) return;
+          const k = (t / 2200 + i / 5) % 1;
+          p.position.set(cx + k * .35, (h + 1.2 + k * 1.3) * HS, cz - k * .15);
+          p.scale.setScalar(.07 + k * .18);
+        });
+      };
+    },
     site(s, prog) {
       flat(.05, .05, s - .05, s - .05, .005, '#d4a373');
       const h = .25 + prog * .6, e = .12;
@@ -267,6 +362,7 @@ const View = (() => {
   function visKey(b) {
     let k = b.type + (b.done ? 'd' : 'c') + b.steps + 'l' + (b.lv || 1);
     if (b.type === 'road') k += [[1, 0], [-1, 0], [0, 1], [0, -1]].map(([dx, dy]) => isRoad(b.x + dx, b.y + dy) ? 1 : 0).join('');
+    else if (DEFS[b.type].cat === 'ranch') k += b.fed ? 'f' : '';
     else if (b.type === 'farm' && b.crop) { const st = farmInfo(b, Date.now()); k += b.crop + st.state + st.stage + (b.watered ? 'w' : ''); }
     return k;
   }
