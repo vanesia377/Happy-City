@@ -1,4 +1,4 @@
-/* Chill City — game xây thành phố thư giãn. Không cần thư viện ngoài. */
+/* Chill City — game xây thành phố 3D thư giãn. Dữ liệu, luật chơi và giao diện; hiển thị 3D nằm ở view3d.js. */
 'use strict';
 
 // ───────────────────────── Dữ liệu ─────────────────────────
@@ -61,11 +61,13 @@ const DEFS = {
 Object.keys(DEFS).forEach(k => DEFS[k].id = k);
 
 const CROPS = [
-  { id: 'cai',    name: 'Rau cải',  icon: '🥬', lvl: 1, cost: 10,  time: 30,        yield: 8,   xp: 1 },
-  { id: 'carot',  name: 'Cà rốt',   icon: '🥕', lvl: 2, cost: 25,  time: 2 * MIN,   yield: 20,  xp: 2 },
-  { id: 'ngo',    name: 'Ngô',      icon: '🌽', lvl: 4, cost: 50,  time: 5 * MIN,   yield: 45,  xp: 4 },
-  { id: 'dau',    name: 'Dâu tây',  icon: '🍓', lvl: 6, cost: 100, time: 15 * MIN,  yield: 100, xp: 8 },
-  { id: 'dua',    name: 'Dưa hấu',  icon: '🍉', lvl: 9, cost: 200, time: HOUR,      yield: 240, xp: 16 },
+  { id: 'cai',   name: 'Rau cải',  icon: '🥬', lvl: 1,  cost: 10,  time: 30,        yield: 8,    xp: 1,  shape: 'leaf',   color: '#95d5b2' },
+  { id: 'carot', name: 'Cà rốt',   icon: '🥕', lvl: 2,  cost: 25,  time: 2 * MIN,   yield: 20,   xp: 2,  shape: 'root',   color: '#f77f00' },
+  { id: 'ngo',   name: 'Ngô',      icon: '🌽', lvl: 4,  cost: 50,  time: 5 * MIN,   yield: 45,   xp: 4,  shape: 'tall',   color: '#ffd60a' },
+  { id: 'dau',   name: 'Dâu tây',  icon: '🍓', lvl: 6,  cost: 100, time: 15 * MIN,  yield: 100,  xp: 8,  shape: 'berry',  color: '#e63946' },
+  { id: 'dua',   name: 'Dưa hấu',  icon: '🍉', lvl: 9,  cost: 200, time: HOUR,      yield: 240,  xp: 16, shape: 'ground', color: '#38b000' },
+  { id: 'lua',   name: 'Lúa',      icon: '🌾', lvl: 11, cost: 350, time: 4 * HOUR,  yield: 520,  xp: 30, shape: 'tall',   color: '#e9c46a', top: '#e9c46a' },
+  { id: 'bingo', name: 'Bí ngô',   icon: '🎃', lvl: 13, cost: 600, time: 8 * HOUR,  yield: 1000, xp: 50, shape: 'ground', color: '#f77f00' },
 ];
 const CROP = Object.fromEntries(CROPS.map(c => [c.id, c]));
 
@@ -77,6 +79,7 @@ const QUESTS = [
   { t: 'Mở đường', d: 'Xây 5 ô đường (nhà và cửa hàng phải kề đường)', k: B('road'), n: 5, r: { coins: 100, xp: 10 } },
   { t: 'Nông dân tập sự', d: 'Xây 1 ô ruộng', k: B('farm'), n: 1, r: { coins: 100, xp: 10 } },
   { t: 'Mùa vụ đầu', d: 'Thu hoạch nông sản 2 lần', k: s => s.stats.harvest, n: 2, r: { coins: 150, xp: 15 } },
+  { t: 'Chăm bón', d: 'Tưới nước cho cây đang lớn 3 lần', k: s => s.stats.water, n: 3, r: { coins: 150, xp: 15 } },
   { t: 'Khai trương', d: 'Xây 1 Xe bánh mì', k: B('banhmi'), n: 1, r: { coins: 150, xp: 15 } },
   { t: 'Tiếp hàng', d: 'Cấp hàng cho cửa hàng 2 lần', k: s => s.stats.supply, n: 2, r: { coins: 200, xp: 20 } },
   { t: 'Thu thuế', d: 'Thu tiền nhà 5 lần', k: s => s.stats.rent, n: 5, r: { coins: 200, xp: 20 } },
@@ -86,6 +89,8 @@ const QUESTS = [
   { t: 'Vươn rộng', d: 'Mở rộng đất 1 lần', k: s => s.stats.expand, n: 1, r: { coins: 500, xp: 50 } },
   { t: 'Kho bãi', d: 'Xây 1 Kho hàng', k: B('warehouse'), n: 1, r: { coins: 400, xp: 40 } },
   { t: 'Cà phê sáng', d: 'Xây 1 Quán cà phê', k: B('cafe'), n: 1, r: { coins: 400, xp: 40 } },
+  { t: 'Lên đời', d: 'Nâng cấp 1 nhà hoặc cửa hàng (chọn công trình rồi bấm Nâng cấp)', k: s => s.stats.upgrade, n: 1, r: { coins: 500, xp: 50 } },
+  { t: 'Diệt sâu', d: 'Bắt sâu trên ruộng 3 lần', k: s => s.stats.bugs, n: 3, r: { coins: 500, xp: 50, gems: 1 } },
   { t: 'Buôn may bán đắt', d: 'Thu tiền cửa hàng 10 lần', k: s => s.stats.sales, n: 10, r: { coins: 600, xp: 60, gems: 1 } },
   { t: 'Đông vui', d: 'Đạt dân số 100', k: () => population(), n: 100, r: { coins: 800, xp: 80 } },
   { t: 'Trăm năm trồng người', d: 'Xây 1 Trường học', k: B('school'), n: 1, r: { coins: 1000, xp: 100, gems: 2 } },
@@ -93,6 +98,7 @@ const QUESTS = [
   { t: 'Thành phố trẻ', d: 'Đạt dân số 250', k: () => population(), n: 250, r: { coins: 2000, xp: 200, gems: 2 } },
   { t: 'Bội thu', d: 'Thu hoạch nông sản 40 lần', k: s => s.stats.harvest, n: 40, r: { coins: 2000, xp: 200 } },
   { t: 'Đất rộng', d: 'Mở rộng đất 3 lần', k: s => s.stats.expand, n: 3, r: { coins: 3000, xp: 300, gems: 2 } },
+  { t: 'Phố sang', d: 'Nâng cấp công trình 6 lần', k: s => s.stats.upgrade, n: 6, r: { coins: 3000, xp: 300, gems: 2 } },
   { t: 'Thị trưởng kỳ cựu', d: 'Đạt cấp 10', k: s => s.level, n: 10, r: { coins: 5000, gems: 3 } },
   { t: 'Đô thị sầm uất', d: 'Đạt dân số 600', k: () => population(), n: 600, r: { coins: 8000, xp: 500, gems: 3 } },
   { t: 'Thiên đường mua sắm', d: 'Xây 1 Trung tâm mua sắm', k: B('mall'), n: 1, r: { coins: 10000, xp: 800, gems: 5 } },
@@ -115,8 +121,8 @@ function fmtTime(sec) {
 function newState() {
   const s = {
     v: 1, coins: 1000, gems: 10, energy: 26, energyAt: Date.now(), xp: 0, level: 1, goods: 20, land: START_LAND,
-    buildings: [], nextId: 1, quest: 0, mute: false,
-    stats: { built: {}, rent: 0, sales: 0, harvest: 0, supply: 0, deco: 0, expand: 0 },
+    buildings: [], nextId: 1, quest: 0, mute: false, dayNight: true, shadows: true,
+    stats: { built: {}, rent: 0, sales: 0, harvest: 0, supply: 0, deco: 0, expand: 0, water: 0, bugs: 0, upgrade: 0 },
     daily: { last: '', streak: 0 },
   };
   const o = (WORLD - START_LAND) / 2;
@@ -128,7 +134,13 @@ function newState() {
 function load() {
   try {
     const raw = localStorage.getItem(SAVE_KEY);
-    if (raw) { const s = JSON.parse(raw); if (s && s.v === 1 && Array.isArray(s.buildings)) return s; }
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (s && s.v === 1 && Array.isArray(s.buildings)) {
+        s.stats = Object.assign({ water: 0, bugs: 0, upgrade: 0 }, s.stats); // bản lưu cũ
+        return s;
+      }
+    }
   } catch (e) { /* bỏ qua, tạo game mới */ }
   return newState();
 }
@@ -172,7 +184,12 @@ function decoBonus(b) {
   }
   return Math.min(50, sum);
 }
-function population() { let p = 0; for (const b of S.buildings) if (b.done) p += DEFS[b.type].pop || 0; return p; }
+const MAX_LV = 3;
+const lvMult = b => 1 + .5 * ((b.lv || 1) - 1);
+const popOf = b => Math.round((DEFS[b.type].pop || 0) * lvMult(b));
+const earnOf = b => DEFS[b.type].earn * lvMult(b);
+const upgradeCost = b => Math.round(DEFS[b.type].cost * 1.5 * (b.lv || 1));
+function population() { let p = 0; for (const b of S.buildings) if (b.done) p += popOf(b); return p; }
 function happyPoints() { let p = 0; for (const b of S.buildings) if (b.done) p += DEFS[b.type].happy || 0; return p; }
 function happiness() {
   const pop = population();
@@ -184,6 +201,34 @@ const maxEnergy = () => Math.min(60, 25 + S.level);
 const xpNeed = l => Math.round(30 * Math.pow(l, 1.8) + 20 * l);
 const ENERGY_SEC = 20;
 const mult = b => happiness() / 100 * (1 + decoBonus(b) / 100);
+
+// ───────────────────────── Trồng trọt ─────────────────────────
+const WATER_BOOST = .3, BUG_LOSS = .3;
+const witherMs = c => Math.max(5 * MIN, 2 * c.time) * 1000;
+/** Trạng thái ruộng: empty | grow | ripe | dead, kèm giai đoạn lớn (0..2) và sâu bọ. */
+function farmInfo(b, now) {
+  if (!b.crop) return { state: 'empty', stage: 0, bug: false };
+  const c = CROP[b.crop], start = b.plantedAt || b.readyAt - c.time * 1000;
+  const bugged = !!b.bugAt && now >= b.bugAt;
+  if (now < b.readyAt) {
+    const p = clamp((now - start) / Math.max(1, b.readyAt - start), 0, .999);
+    return { state: 'grow', stage: Math.floor(p * 3), bug: bugged, left: b.readyAt - now };
+  }
+  const dead = b.readyAt + witherMs(c);
+  return now < dead ? { state: 'ripe', stage: 3, bug: bugged, left: dead - now } : { state: 'dead', stage: 3, bug: false };
+}
+function waterCrop(b, now) { b.readyAt = now + (b.readyAt - now) * (1 - WATER_BOOST); b.watered = true; }
+
+let rainUntil = 0, nextRain = Date.now() + (100 + Math.random() * 120) * 1000;
+const isRaining = () => Date.now() < rainUntil;
+function tickWeather() {
+  const now = Date.now();
+  if (now < nextRain) return;
+  rainUntil = now + 40000; nextRain = now + (5 + Math.random() * 5) * MIN * 1000;
+  let n = 0;
+  for (const b of S.buildings) if (b.type === 'farm' && b.crop && !b.watered && now < b.readyAt) { waterCrop(b, now); n++; }
+  toast(n ? `🌧️ Trời mưa! ${n} ruộng được tưới nước miễn phí` : '🌧️ Trời đổ mưa rào…');
+}
 
 // ───────────────────────── Âm thanh ─────────────────────────
 let actx;
@@ -200,16 +245,17 @@ function beep(f, d = .08, type = 'sine', vol = .06) {
 const sfx = {
   coin: () => { beep(880, .07); setTimeout(() => beep(1320, .1), 60); },
   pop: () => beep(520, .06, 'triangle'),
+  water: () => { beep(700, .05, 'sine'); setTimeout(() => beep(500, .08, 'sine'), 50); },
   build: () => beep(180, .07, 'square', .04),
   bad: () => beep(140, .15, 'sawtooth', .04),
   win: () => [523, 659, 784, 1047].forEach((f, i) => setTimeout(() => beep(f, .15), i * 110)),
 };
 
 // ───────────────────────── Kinh tế & hành động ─────────────────────────
-const floats = [];
 function floatAt(b, text, color = '#fff') {
-  const s = DEFS[b.type].s, t = DEFS[b.type].top;
-  floats.push({ x: (b.x - b.y) * TW, y: (b.x + b.y + s) * TH - t * ZH, text, color, t0: performance.now() });
+  const p = View.screenOf(b), el = document.createElement('div');
+  el.className = 'float'; el.textContent = text; el.style.left = p.x + 'px'; el.style.top = p.y + 'px'; el.style.color = color;
+  $('floats').appendChild(el); setTimeout(() => el.remove(), 1300);
 }
 function toast(msg) {
   const el = document.createElement('div'); el.className = 'toast'; el.textContent = msg;
@@ -243,9 +289,9 @@ function useEnergy() {
   sfx.bad(); askEnergy(); return false;
 }
 function askEnergy() {
-  openModal('Hết năng lượng', `<div class="big">⚡</div>
+  openModal('Năng lượng', `<div class="big">⚡</div>
     <p>Năng lượng hồi 1 điểm mỗi ${ENERGY_SEC} giây và đầy lại khi lên cấp.</p>
-    <button class="btn" data-do="refill" ${S.gems < 3 ? 'disabled' : ''}>Nạp đầy (💎 3)</button>
+    <button class="btn" data-do="refill" ${S.gems < 3 || S.energy >= maxEnergy() ? 'disabled' : ''}>Nạp đầy (💎 3)</button>
     <button class="btn alt" data-close>Chờ hồi</button>`, true);
 }
 
@@ -267,7 +313,7 @@ function finish(b, quiet) {
   if (d.cat === 'house') b.readyAt = Date.now() + d.time * 1000;
   S.stats.built[b.type] = (S.stats.built[b.type] || 0) + 1;
   if (d.cat === 'deco') S.stats.deco++;
-  if (!quiet) { floatAt(b, 'Hoàn thành!', '#d8f3dc'); }
+  if (!quiet) floatAt(b, 'Hoàn thành!', '#d8f3dc');
   sfx.pop();
   addXp(Math.max(1, Math.round(d.cost / 25)));
 }
@@ -285,7 +331,7 @@ function act(b) {
     if (now < b.readyAt) return false;
     if (!hasRoad(b)) { toast('Nhà cần nằm kề đường mới thu được tiền'); sfx.bad(); return true; }
     if (!useEnergy()) return true;
-    const amt = Math.round(d.earn * mult(b));
+    const amt = Math.round(earnOf(b) * mult(b));
     S.coins += amt; S.stats.rent++; b.readyAt = now + d.time * 1000;
     floatAt(b, '+' + fmt(amt) + '🪙', '#fff3b0'); sfx.coin(); addXp(Math.max(1, Math.round(d.earn / 20)));
     return true;
@@ -293,7 +339,7 @@ function act(b) {
   if (d.cat === 'shop') {
     if (!hasRoad(b)) { toast('Cửa hàng cần nằm kề đường'); sfx.bad(); return true; }
     if (!b.supplied) {
-      if (S.goods < d.need) { toast(`Cần ${d.need} 📦 hàng hóa — hãy trồng trọt thêm!`); sfx.bad(); return true; }
+      if (S.goods < d.need) { toast(`Cần ${d.need} 📦 hàng hóa — hãy trồng trọt thêm hoặc mua ở chợ`); sfx.bad(); return true; }
       if (!useEnergy()) return true;
       S.goods -= d.need; b.supplied = true; b.readyAt = now + d.time * 1000; S.stats.supply++;
       floatAt(b, '-' + d.need + '📦'); sfx.pop();
@@ -301,35 +347,69 @@ function act(b) {
     }
     if (now < b.readyAt) return false;
     if (!useEnergy()) return true;
-    const amt = Math.round(d.earn * mult(b));
+    const amt = Math.round(earnOf(b) * mult(b));
     S.coins += amt; S.stats.sales++; b.supplied = false;
     floatAt(b, '+' + fmt(amt) + '🪙', '#fff3b0'); sfx.coin(); addXp(Math.max(1, Math.round(d.earn / 20)));
     return true;
   }
-  if (b.type === 'farm') {
-    if (!b.crop) { openCrops(b); return true; }
-    if (now < b.readyAt) return false;
-    const cap = storage();
-    if (S.goods >= cap) { toast('Kho đã đầy! Hãy xây thêm Kho hàng hoặc cấp hàng cho cửa hàng'); sfx.bad(); return true; }
-    if (!useEnergy()) return true;
-    const c = CROP[b.crop], got = Math.min(c.yield, cap - S.goods);
-    S.goods += got; S.stats.harvest++; b.crop = null;
-    floatAt(b, '+' + got + '📦', '#d8f3dc'); sfx.pop(); addXp(c.xp);
-    return true;
-  }
+  if (b.type === 'farm') return actFarm(b, now);
   return false;
 }
+function actFarm(b, now) {
+  const st = farmInfo(b, now);
+  if (st.state === 'empty') { openCrops(b); return true; }
+  const c = CROP[b.crop];
+  if (st.state === 'dead') {
+    witherFarm = b;
+    openModal('Cây đã héo', `<div class="big">🥀</div><p><b>${c.name}</b> đã héo vì để quá lâu không thu hoạch.</p>
+      <button class="btn" data-do="clear">Dọn ruộng (⚡ 1)</button>
+      <button class="btn alt" data-do="revive" ${S.gems < 1 ? 'disabled' : ''}>Hồi sinh (💎 1)</button>`, true);
+    return true;
+  }
+  if (st.state === 'grow') {
+    if (st.bug) { // bắt sâu: miễn phí
+      b.bugAt = 0; S.stats.bugs++; floatAt(b, '🐛 Đã bắt sâu!', '#d8f3dc'); sfx.pop(); addXp(2);
+      return true;
+    }
+    if (!b.watered) {
+      if (!useEnergy()) return true;
+      waterCrop(b, now); S.stats.water++; floatAt(b, '💧 Lớn nhanh hơn ' + WATER_BOOST * 100 + '%', '#a5d8ff'); sfx.water(); addXp(1);
+      return true;
+    }
+    return false;
+  }
+  // chín: thu hoạch
+  const cap = storage();
+  if (S.goods >= cap) { toast('Kho đã đầy! Xây thêm Kho hàng, cấp hàng cho cửa hàng hoặc bán bớt ở chợ'); sfx.bad(); return true; }
+  if (!useEnergy()) return true;
+  const full = Math.round(c.yield * (st.bug ? 1 - BUG_LOSS : 1)), got = Math.min(full, cap - S.goods);
+  S.goods += got; S.stats.harvest++;
+  floatAt(b, '+' + got + '📦' + (st.bug ? ' (sâu ăn ' + BUG_LOSS * 100 + '%)' : ''), st.bug ? '#ffd6a5' : '#d8f3dc');
+  clearFarm(b); sfx.pop(); addXp(c.xp);
+  return true;
+}
+function clearFarm(b) { b.crop = null; b.watered = false; b.bugAt = 0; b.plantedAt = 0; }
 function plant(b, id) {
-  const c = CROP[id];
+  const c = CROP[id], now = Date.now();
   if (S.level < c.lvl) return;
   if (S.coins < c.cost) { toast('Không đủ xu!'); sfx.bad(); return; }
   if (!useEnergy()) return;
-  S.coins -= c.cost; b.crop = id; b.readyAt = Date.now() + c.time * 1000;
+  S.coins -= c.cost; b.crop = id; b.plantedAt = now; b.readyAt = now + c.time * 1000; b.watered = false;
+  b.bugAt = Math.random() < .45 ? now + c.time * 1000 * (.2 + Math.random() * .45) : 0;
+  if (isRaining()) waterCrop(b, now);
   floatAt(b, c.icon + ' Đã gieo'); sfx.pop(); closeModal();
+}
+function upgrade(b) {
+  const d = DEFS[b.type], cost = upgradeCost(b);
+  if (!b.done || (b.lv || 1) >= MAX_LV || !(d.cat === 'house' || d.cat === 'shop')) return;
+  if (S.coins < cost) { toast('Không đủ xu để nâng cấp!'); sfx.bad(); return; }
+  S.coins -= cost; b.lv = (b.lv || 1) + 1; S.stats.upgrade++;
+  floatAt(b, '⬆️ Cấp ' + b.lv, '#ffe066'); sfx.win(); addXp(Math.max(2, Math.round(cost / 30)));
 }
 function sell(b) {
   const d = DEFS[b.type], refund = Math.floor(d.cost / 2);
   S.buildings.splice(S.buildings.indexOf(b), 1);
+  if (selected === b) selected = null;
   S.coins += refund; rebuildGrid(); sfx.coin(); toast(`Đã phá dỡ ${d.name} (+${fmt(refund)} xu)`);
 }
 const expandInfo = () => { const k = (S.land - START_LAND) / 2 + 1; return { cost: 2000 * k * k, lvl: 1 + 2 * k, max: S.land >= WORLD }; };
@@ -348,305 +428,25 @@ function statusOf(b) {
     return now >= b.readyAt ? { icon: '🪙', text: 'Sẵn sàng thu tiền' } : { text: 'Đang bán, còn ' + fmtTime((b.readyAt - now) / 1000) };
   }
   if (b.type === 'farm') {
-    if (!b.crop) return { icon: '🌱', text: 'Ruộng trống — chạm để gieo trồng' };
+    const st = farmInfo(b, now);
+    if (st.state === 'empty') return { icon: '🌱', text: 'Ruộng trống — chạm để gieo trồng' };
     const c = CROP[b.crop];
-    return now >= b.readyAt ? { icon: c.icon, text: 'Sẵn sàng thu hoạch ' + c.name } : { text: `${c.name} chín sau ` + fmtTime((b.readyAt - now) / 1000) };
+    if (st.state === 'dead') return { icon: '🥀', text: `${c.name} đã héo — chạm để dọn hoặc hồi sinh` };
+    if (st.state === 'ripe') return { icon: c.icon, text: `Thu hoạch ${c.name} ngay — héo sau ${fmtTime(st.left / 1000)}` + (st.bug ? ' · bị sâu ăn' : '') };
+    const left = `${c.name} chín sau ${fmtTime(st.left / 1000)}`;
+    if (st.bug) return { icon: '🐛', text: left + ' — có sâu, chạm để bắt!' };
+    if (!b.watered) return { icon: '💧', text: left + ' — chạm để tưới (1⚡)' };
+    return { text: left + ' · đã tưới' };
   }
   if (d.happy) return { text: `+${d.happy} hạnh phúc` + (d.bonus ? ` · +${d.bonus}% thu nhập quanh đây` : '') };
   if (d.store) return { text: `+${d.store} sức chứa kho` };
   return { text: b.type === 'road' ? 'Nhà và cửa hàng cần kề đường' : '' };
 }
 
-// ───────────────────────── Vẽ isometric ─────────────────────────
-const cv = $('game');
-let g = cv.getContext('2d');
-const TW = 32, TH = 16, ZH = 28;
-let OX = 0, OY = 0, W = 0, H = 0, DPR = 1;
-const cam = { x: 0, y: 0, z: 1.2 };
-
-const P = (x, y, z = 0) => [(x + OX - y - OY) * TW, (x + OX + y + OY) * TH - z * ZH];
-function shade(hex, f) {
-  const n = parseInt(hex.slice(1), 16);
-  const c = v => clamp(Math.round(v * f), 0, 255);
-  return `rgb(${c(n >> 16)},${c(n >> 8 & 255)},${c(n & 255)})`;
-}
-function poly(pts, fill, stroke) {
-  g.beginPath(); g.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]);
-  g.closePath();
-  if (fill) { g.fillStyle = fill; g.fill(); }
-  if (stroke) { g.strokeStyle = stroke; g.lineWidth = 1; g.stroke(); }
-}
-const OUT = 'rgba(60,40,30,.35)';
-function box(x0, y0, x1, y1, z0, z1, col) {
-  poly([P(x0, y1, z1), P(x1, y1, z1), P(x1, y1, z0), P(x0, y1, z0)], shade(col, .86), OUT);
-  poly([P(x1, y0, z1), P(x1, y1, z1), P(x1, y1, z0), P(x1, y0, z0)], shade(col, .7), OUT);
-  poly([P(x0, y0, z1), P(x1, y0, z1), P(x1, y1, z1), P(x0, y1, z1)], shade(col, 1.05), OUT);
-}
-const quadL = (xa, xb, y, za, zb, col) => poly([P(xa, y, zb), P(xb, y, zb), P(xb, y, za), P(xa, y, za)], col);
-const quadR = (x, ya, yb, za, zb, col) => poly([P(x, ya, zb), P(x, yb, zb), P(x, yb, za), P(x, ya, za)], col);
-function gable(x0, y0, x1, y1, z0, z1, col) {
-  const ym = (y0 + y1) / 2;
-  poly([P(x0, y0, z0), P(x1, y0, z0), P(x1, ym, z1), P(x0, ym, z1)], shade(col, 1.1), OUT);
-  poly([P(x1, y0, z0), P(x1, y1, z0), P(x1, ym, z1)], shade(col, .6), OUT);
-  poly([P(x0, y1, z0), P(x1, y1, z0), P(x1, ym, z1), P(x0, ym, z1)], shade(col, .92), OUT);
-}
-function pyr(x0, y0, x1, y1, z0, z1, col) {
-  const c = P((x0 + x1) / 2, (y0 + y1) / 2, z1);
-  poly([P(x0, y0, z0), P(x1, y0, z0), c], shade(col, 1.15));
-  poly([P(x0, y0, z0), P(x0, y1, z0), c], shade(col, 1.1));
-  poly([P(x0, y1, z0), P(x1, y1, z0), c], shade(col, .95), OUT);
-  poly([P(x1, y0, z0), P(x1, y1, z0), c], shade(col, .72), OUT);
-}
-function circ(x, y, z, r, col, stroke) {
-  const p = P(x, y, z);
-  g.beginPath(); g.arc(p[0], p[1], r, 0, 7); g.fillStyle = col; g.fill();
-  if (stroke) { g.strokeStyle = stroke; g.lineWidth = 1; g.stroke(); }
-}
-function emoji(x, y, z, ch, size) {
-  const p = P(x, y, z);
-  g.font = size + 'px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = '#000'; g.fillText(ch, p[0], p[1]);
-}
-function treeAt(x, y, sc = 1, col = '#52b788') {
-  box(x - .05, y - .05, x + .05, y + .05, 0, .4 * sc, '#8d6e63');
-  circ(x, y, .62 * sc, 12 * sc, shade(col, .85), OUT);
-  circ(x - .05, y - .05, .8 * sc, 9 * sc, col);
-  circ(x - .1, y - .1, .9 * sc, 4 * sc, shade(col, 1.2));
-}
-
-const STYLES = {
-  house(s, o) {
-    const a = o.inset ?? .14, b = s - a, h = o.h, win = o.win || '#fff3b0';
-    if (s > 1) poly([P(.04, .04), P(s - .04, .04), P(s - .04, s - .04), P(.04, s - .04)], '#b7e4a0');
-    box(a, a, b, b, 0, h, o.wall);
-    const floors = Math.max(1, Math.round(h / .5)), fh = h / floors, n = Math.max(2, Math.round((b - a) * 2.4));
-    for (let f = 0; f < floors; f++) for (let i = 0; i < n; i++) {
-      const u0 = a + (b - a) * (i + .25) / n, u1 = a + (b - a) * (i + .75) / n;
-      const z0 = f * fh + fh * .3, z1 = f * fh + fh * .78;
-      if (f === 0 && i === Math.floor(n / 2)) quadL(u0, u1, b, 0, fh * .78, '#7f5539');
-      else quadL(u0, u1, b, z0, z1, win);
-      quadR(b, u0, u1, z0, z1, shade(win, .82));
-    }
-    const e = .07;
-    if (o.rt === 'gable') gable(a - e, a - e, b + e, b + e, h, h + o.rh, o.roof);
-    else if (o.rt === 'pyr') pyr(a - e, a - e, b + e, b + e, h, h + o.rh, o.roof);
-    else { box(a - .03, a - .03, b + .03, b + .03, h, h + o.rh, o.roof); const m = (a + b) / 2; box(m - .2, m - .2, m + .1, m + .1, h + o.rh, h + o.rh + .18, '#adb5bd'); }
-    if (o.sign) emoji(s / 2, s / 2, h + o.rh + .45, o.sign, 16 + s * 3);
-  },
-  shop(s, o) {
-    const a = .1, b = s - a, h = o.h, win = o.win || '#caf0f8';
-    box(a, a, b, b, 0, h, o.wall);
-    const n = Math.max(1, Math.round((b - a) * 1.5));
-    for (let i = 0; i < n; i++) {
-      const u0 = a + (b - a) * (i + .15) / n, u1 = a + (b - a) * (i + .85) / n;
-      quadL(u0, u1, b, i === 0 ? 0 : h * .25, h * .68, i === 0 ? '#6b4f3a' : win);
-      quadR(b, u0, u1, h * .25, h * .68, shade(win, .85));
-    }
-    // mái hiên sọc
-    const k = Math.round((b - a) * 6);
-    for (let i = 0; i < k; i++) {
-      const u0 = a + (b - a) * i / k, u1 = a + (b - a) * (i + 1) / k, c = i % 2 ? '#ffffff' : o.roof;
-      poly([P(u0, b, h * .95), P(u1, b, h * .95), P(u1, b + .16, h * .72), P(u0, b + .16, h * .72)], c);
-      poly([P(b, u0, h * .95), P(b, u1, h * .95), P(b + .16, u1, h * .72), P(b + .16, u0, h * .72)], shade(c, .82));
-    }
-    box(a - .03, a - .03, b + .03, b + .03, h, h + .1, o.roof);
-    const pz = h + .5 + (s - 1) * .1;
-    circ(s / 2, s / 2, pz, 11 + s * 2, '#fff', OUT);
-    emoji(s / 2, s / 2, pz, o.sign, 13 + s * 3);
-  },
-  road() {
-    poly([P(0, 0), P(1, 0), P(1, 1), P(0, 1)], '#7d8597');
-    const r = (dx, dy) => { const x = OX + dx, y = OY + dy; const b = x >= 0 && y >= 0 && x < WORLD && y < WORLD && grid[x] && grid[x][y]; return b && b.type === 'road'; };
-    g.strokeStyle = '#f8f9fa'; g.lineWidth = 1.5; g.setLineDash([4, 4]);
-    const c = P(.5, .5); let any = false;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (r(dx, dy)) {
-      const e = P(.5 + dx / 2, .5 + dy / 2); g.beginPath(); g.moveTo(c[0], c[1]); g.lineTo(e[0], e[1]); g.stroke(); any = true;
-    }
-    g.setLineDash([]);
-    if (!any) circ(.5, .5, 0, 2, '#f8f9fa');
-  },
-  farm(s, o, b, now) {
-    box(.06, .06, s - .06, s - .06, 0, .1, '#9c6644');
-    for (let i = 0; i < 4; i++) quadTop(.2, .2 + i * .42 * s / 2 + .0, s - .2, .32 + i * .42 * s / 2, .1, '#7f5539');
-    if (!b || !b.crop) return;
-    const c = CROP[b.crop], p = clamp(1 - (b.readyAt - now) / (c.time * 1000), 0, 1);
-    for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
-      const x = .32 + i * (s - .64) / 3, y = .26 + j * .42 * s / 2;
-      if (p >= 1) emoji(x, y, .3, c.icon, 12);
-      else { circ(x, y, .12 + p * .2, 2 + p * 4, '#74c69d'); circ(x, y, .16 + p * .26, 1.5 + p * 3, '#40916c'); }
-    }
-  },
-  tree() { treeAt(.5, .5); },
-  flowers(s, o, b, now) {
-    box(.15, .15, .85, .85, 0, .12, '#bc8a5f');
-    quadTop(.2, .2, .8, .8, .12, '#6a994e');
-    const cols = ['#ff6b6b', '#ffd166', '#f78fb3', '#ffffff', '#c77dff'];
-    for (let i = 0; i < 9; i++) circ(.3 + (i % 3) * .2, .3 + Math.floor(i / 3) * .2, .22, 3, cols[i % 5], OUT);
-  },
-  lamp(s, o, b, now) {
-    box(.45, .45, .55, .55, 0, 1.05, '#495057');
-    circ(.5, .5, 1.15, 9, 'rgba(255,230,120,.35)');
-    circ(.5, .5, 1.15, 4.5, '#ffe066', OUT);
-  },
-  fountain(s, o, b, now) {
-    box(.12, .12, .88, .88, 0, .18, '#dee2e6');
-    quadTop(.2, .2, .8, .8, .18, '#74c0fc');
-    box(.43, .43, .57, .57, .18, .55, '#ced4da');
-    const t = (now || 0) / 300;
-    g.strokeStyle = '#a5d8ff'; g.lineWidth = 2;
-    for (let i = 0; i < 5; i++) {
-      const a = i * 1.257 + t * .3, top = P(.5, .5, .62), end = P(.5 + Math.cos(a) * .25, .5 + Math.sin(a) * .25, .2);
-      g.beginPath(); g.moveTo(top[0], top[1]); g.quadraticCurveTo((top[0] + end[0]) / 2, top[1] - 10 - Math.sin(t + i) * 2, end[0], end[1]); g.stroke();
-    }
-  },
-  park() {
-    poly([P(.05, .05), P(1.95, .05), P(1.95, 1.95), P(.05, 1.95)], '#95d5b2', OUT);
-    poly([P(.9, .05), P(1.1, .05), P(1.1, 1.95), P(.9, 1.95)], '#e9d8a6');
-    poly([P(.05, .9), P(1.95, .9), P(1.95, 1.1), P(.05, 1.1)], '#e9d8a6');
-    treeAt(.45, .45, 1, '#40916c'); treeAt(1.55, .45, .9, '#74c69d');
-    box(1.3, 1.5, 1.75, 1.62, 0, .16, '#9c6644');
-    treeAt(.45, 1.55, 1.05, '#52b788');
-    circ(1, 1, .05, 5, '#ffd166', OUT);
-  },
-  statue() {
-    box(.25, .25, .75, .75, 0, .35, '#ced4da');
-    box(.4, .4, .6, .6, .35, .95, '#e9c46a');
-    circ(.5, .5, 1.12, 6, '#f4d35e', OUT);
-    emoji(.5, .5, 1.5, '⭐', 11);
-  },
-  ferris(s, o, b, now) {
-    poly([P(.1, .1), P(1.9, .1), P(1.9, 1.9), P(.1, 1.9)], '#d8e2dc', OUT);
-    const c = P(1, 1, 1.7), R = 38, t = (now || 0) / 2500;
-    g.strokeStyle = '#6c757d'; g.lineWidth = 3;
-    for (const f of [P(.5, 1.5), P(1.5, .5)]) { g.beginPath(); g.moveTo(f[0], f[1]); g.lineTo(c[0], c[1]); g.stroke(); }
-    g.strokeStyle = '#e63946'; g.lineWidth = 2.5; g.beginPath(); g.arc(c[0], c[1], R, 0, 7); g.stroke();
-    g.lineWidth = 1; g.strokeStyle = '#adb5bd';
-    const cols = ['#ffd166', '#06d6a0', '#118ab2', '#ef476f', '#f78c6b', '#c77dff', '#83c5be', '#ffb703'];
-    for (let i = 0; i < 8; i++) {
-      const a = t + i * Math.PI / 4, x = c[0] + Math.cos(a) * R, y = c[1] + Math.sin(a) * R;
-      g.beginPath(); g.moveTo(c[0], c[1]); g.lineTo(x, y); g.stroke();
-      g.fillStyle = cols[i]; g.fillRect(x - 4, y, 8, 7); g.strokeStyle = OUT; g.strokeRect(x - 4, y, 8, 7); g.strokeStyle = '#adb5bd';
-    }
-    g.beginPath(); g.arc(c[0], c[1], 4, 0, 7); g.fillStyle = '#e63946'; g.fill();
-  },
-  stadium() {
-    box(.1, .1, 2.9, 2.9, 0, .7, '#dee2e6');
-    quadTop(.25, .25, 2.75, 2.75, .7, '#e63946');
-    quadTop(.45, .45, 2.55, 2.55, .7, '#adb5bd');
-    quadTop(.7, .7, 2.3, 2.3, .7, '#52b788');
-    const a = P(1.5, .7, .7), b2 = P(1.5, 2.3, .7);
-    g.strokeStyle = '#fff'; g.lineWidth = 1; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b2[0], b2[1]); g.stroke();
-    for (const [x, y] of [[.2, .2], [2.8, .2], [.2, 2.8], [2.8, 2.8]]) { box(x - .05, y - .05, x + .05, y + .05, .7, 1.3, '#6c757d'); circ(x, y, 1.35, 4, '#ffe066', OUT); }
-    emoji(1.5, 1.5, 1.2, '⚽', 16);
-  },
-  site(s, prog) {
-    poly([P(.05, .05), P(s - .05, .05), P(s - .05, s - .05), P(.05, s - .05)], '#d4a373', OUT);
-    const h = .25 + prog * .6;
-    box(.2, .2, s - .2, s - .2, 0, h, '#e9edc9');
-    g.strokeStyle = '#bc6c25'; g.lineWidth = 2;
-    for (const [x, y] of [[.12, s - .12], [s - .12, s - .12], [s - .12, .12], [.12, .12]]) {
-      const p0 = P(x, y, 0), p1 = P(x, y, h + .3); g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]); g.stroke();
-    }
-    const q = [P(.12, s - .12, h + .3), P(s - .12, s - .12, h + .3), P(s - .12, .12, h + .3)];
-    g.beginPath(); g.moveTo(q[0][0], q[0][1]); g.lineTo(q[1][0], q[1][1]); g.lineTo(q[2][0], q[2][1]); g.stroke();
-  },
-};
-function quadTop(x0, y0, x1, y1, z, col) { poly([P(x0, y0, z), P(x1, y0, z), P(x1, y1, z), P(x0, y1, z)], col); }
-
-function drawBuilding(b, now) {
-  const d = DEFS[b.type];
-  OX = b.x; OY = b.y;
-  if (!b.done) STYLES.site(d.s, b.steps / d.steps);
-  else STYLES[d.style](d.s, d.o || {}, b, now);
-}
-function drawBubble(b, icon, now) {
-  const d = DEFS[b.type];
-  OX = b.x; OY = b.y;
-  const p = P(d.s / 2, d.s / 2, (b.done ? d.top : 1) + .45);
-  const y = p[1] + Math.sin(now / 300 + b.id) * 2.5;
-  g.beginPath(); g.arc(p[0], y, 11, 0, 7); g.fillStyle = 'rgba(255,255,255,.95)'; g.fill();
-  g.strokeStyle = '#e9c46a'; g.lineWidth = 2; g.stroke();
-  g.font = '13px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillStyle = '#000';
-  g.fillText(icon, p[0], y + 1);
-}
-const hash = (x, y) => ((x * 73856093) ^ (y * 19349663)) >>> 0;
-
-function render() {
-  const now = Date.now();
-  g = ctx0;
-  g.setTransform(DPR, 0, 0, DPR, 0, 0);
-  const sky = g.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#8fd3f4'); sky.addColorStop(1, '#d4f1c5');
-  g.fillStyle = sky; g.fillRect(0, 0, W, H);
-  g.setTransform(DPR * cam.z, 0, 0, DPR * cam.z, DPR * cam.x, DPR * cam.y);
-
-  // nền đảo
-  OX = OY = 0;
-  poly([P(0, WORLD, -.5), P(WORLD, WORLD, -.5), P(WORLD, WORLD), P(0, WORLD)], '#8d6e63');
-  poly([P(WORLD, 0, -.5), P(WORLD, WORLD, -.5), P(WORLD, WORLD), P(WORLD, 0)], '#6d4c41');
-  for (let x = 0; x < WORLD; x++) for (let y = 0; y < WORLD; y++) {
-    const un = unlocked(x, y), odd = (x + y) & 1;
-    poly([P(x, y), P(x + 1, y), P(x + 1, y + 1), P(x, y + 1)], un ? (odd ? '#a8e08f' : '#9fd983') : (odd ? '#5fa56b' : '#589e64'));
-  }
-  // đường (phẳng) trước
-  for (const b of S.buildings) if (b.type === 'road' && b !== moving) drawBuilding(b, now);
-  // vật thể theo chiều sâu
-  const items = [];
-  for (const b of S.buildings) if (b.type !== 'road' && b !== moving) items.push({ k: b.x + b.y + DEFS[b.type].s - 1, b });
-  for (let x = 0; x < WORLD; x++) for (let y = 0; y < WORLD; y++) if (!unlocked(x, y) && hash(x, y) % 3 === 0) items.push({ k: x + y, t: [x, y] });
-  items.sort((a, b) => a.k - b.k);
-  for (const it of items) {
-    if (it.b) drawBuilding(it.b, now);
-    else { OX = it.t[0]; OY = it.t[1]; treeAt(.5, .5, .8 + hash(OY, OX) % 5 * .08, '#2d6a4f'); }
-  }
-  // bóng ma khi đặt / di chuyển
-  if (mode.name !== 'idle' && hover) drawGhost(now);
-  // bong bóng trạng thái
-  for (const b of S.buildings) { if (b === moving) continue; const st = statusOf(b); if (st.icon) drawBubble(b, st.icon, now); }
-  // chữ bay
-  const t = performance.now();
-  g.font = 'bold 13px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
-  for (let i = floats.length - 1; i >= 0; i--) {
-    const f = floats[i], a = (t - f.t0) / 1300;
-    if (a >= 1) { floats.splice(i, 1); continue; }
-    g.globalAlpha = 1 - a * a; g.lineWidth = 3; g.strokeStyle = 'rgba(40,30,20,.8)';
-    g.strokeText(f.text, f.x, f.y - a * 34); g.fillStyle = f.color; g.fillText(f.text, f.x, f.y - a * 34);
-  }
-  g.globalAlpha = 1;
-}
-function drawGhost(now) {
-  const type = mode.name === 'place' ? mode.type : (moving && moving.type);
-  if (mode.name === 'sell' || !type) {
-    const b = grid[hover.x] && grid[hover.x][hover.y];
-    if (b) { const s = DEFS[b.type].s; OX = b.x; OY = b.y; poly([P(0, 0), P(s, 0), P(s, s), P(0, s)], mode.name === 'sell' ? 'rgba(230,57,70,.45)' : 'rgba(255,209,102,.5)'); }
-    return;
-  }
-  const d = DEFS[type], x = hover.x - Math.floor(d.s / 2), y = hover.y - Math.floor(d.s / 2), ok = canPlace(x, y, d.s);
-  OX = x; OY = y;
-  if (d.range) { const r = d.range; poly([P(-r, -r), P(d.s + r, -r), P(d.s + r, d.s + r), P(-r, d.s + r)], 'rgba(255,209,102,.25)', 'rgba(244,162,97,.9)'); }
-  poly([P(0, 0), P(d.s, 0), P(d.s, d.s), P(0, d.s)], ok ? 'rgba(80,200,120,.55)' : 'rgba(230,57,70,.55)');
-  g.globalAlpha = .7;
-  STYLES[d.style](d.s, d.o || {}, mode.name === 'move' ? moving : null, now);
-  g.globalAlpha = 1;
-}
-
-const thumbs = {};
-function thumb(id) {
-  if (thumbs[id]) return thumbs[id];
-  const d = DEFS[id], c = document.createElement('canvas'); c.width = c.height = 176;
-  const save = [g, OX, OY]; g = c.getContext('2d'); OX = OY = 0;
-  const tall = d.top * ZH + d.s * TH * 2 + 10, sc = Math.min(2.4, 160 / (d.s * TW * 2), 165 / tall);
-  g.setTransform(sc, 0, 0, sc, 88, 170 - d.s * TH * 2 * sc);
-  STYLES[d.style](d.s, d.o || {}, id === 'farm' ? { crop: 'ngo', readyAt: 0 } : null, 0);
-  [g, OX, OY] = save;
-  return thumbs[id] = c.toDataURL();
-}
-
 // ───────────────────────── Giao diện ─────────────────────────
 const mode = { name: 'idle', type: null };
 let moving = null, moveFrom = null, hover = null, selected = null;
-let shopTab = 'house';
+let shopTab = 'house', cropFarm = null, witherFarm = null, sellTarget = null;
 
 function setMode(name, type) {
   if (moving) { moving.x = moveFrom.x; moving.y = moveFrom.y; moving = null; rebuildGrid(); }
@@ -657,12 +457,13 @@ function setMode(name, type) {
   $('banner').classList.toggle('hidden', !txt);
   if (txt) $('banner-text').textContent = txt();
 }
+function pickUp(b) { setMode('move'); moving = b; moveFrom = { x: b.x, y: b.y }; rebuildGrid(); sfx.pop(); }
 
 function openModal(title, html, center, tabs) {
   $('modal-box').innerHTML = `<div class="m-head"><span>${title}</span><button data-close>✕</button></div>${tabs || ''}<div class="m-body ${center ? 'center' : ''}">${html}</div>`;
   $('modal').classList.remove('hidden');
 }
-function closeModal() { $('modal').classList.add('hidden'); cropFarm = null; }
+function closeModal() { $('modal').classList.add('hidden'); cropFarm = null; witherFarm = null; }
 
 function statLine(d) {
   if (d.cat === 'house') return `👥 +${d.pop} · 🪙 ${fmt(d.earn)} / ${fmtTime(d.time)}`;
@@ -677,21 +478,32 @@ function openShop() {
   const cards = Object.values(DEFS).filter(d => d.cat === shopTab).map(d => {
     const lock = S.level < d.lvl, poor = S.coins < d.cost;
     return `<div class="card ${lock ? 'lock' : poor ? 'poor' : ''}" data-buy="${d.id}">
-      <img src="${thumb(d.id)}" width="88" height="88" alt=""><div class="nm">${d.name}</div>
+      <img src="${View.thumb(d.id)}" width="88" height="88" alt=""><div class="nm">${d.name}</div>
       <div class="st">${statLine(d)}</div><div class="pr">${lock ? '🔒 Cấp ' + d.lvl : '🪙 ' + fmt(d.cost)}</div></div>`;
   }).join('');
   openModal('Xây dựng', `<div class="grid">${cards}</div>`, false, tabs);
 }
-let cropFarm = null;
 function openCrops(b) {
   const cards = CROPS.map(c => {
     const lock = S.level < c.lvl;
     return `<div class="card ${lock ? 'lock' : S.coins < c.cost ? 'poor' : ''}" data-crop="${c.id}">
       <div class="ico">${c.icon}</div><div class="nm">${c.name}</div>
-      <div class="st">📦 +${c.yield} · ⏱ ${fmtTime(c.time)}</div><div class="pr">${lock ? '🔒 Cấp ' + c.lvl : '🪙 ' + c.cost}</div></div>`;
+      <div class="st">📦 +${c.yield} · ⏱ ${fmtTime(c.time)}<br>🥀 héo sau ${fmtTime(witherMs(c) / 1000)}</div><div class="pr">${lock ? '🔒 Cấp ' + c.lvl : '🪙 ' + c.cost}</div></div>`;
   }).join('');
-  openModal('Gieo trồng', `<div class="grid">${cards}</div>`);
+  openModal('Gieo trồng', `<p class="hint">💧 Tưới nước giúp cây lớn nhanh hơn ${WATER_BOOST * 100}%. 🐛 Bắt sâu kịp thời, nếu không sẽ mất ${BUG_LOSS * 100}% sản lượng. 🥀 Cây chín để quá lâu sẽ héo!</p><div class="grid">${cards}</div>`);
   cropFarm = b;
+}
+const MARKET = { sell: 1.5, buy: 8 };
+function openMarket() {
+  const cap = storage();
+  const row = (kind, n) => {
+    const price = Math.round(n * MARKET[kind]);
+    const ok = kind === 'sell' ? S.goods >= n : S.coins >= price && S.goods + n <= cap;
+    return `<button class="btn ${kind === 'sell' ? '' : 'alt2'}" data-do="mkt" data-kind="${kind}" data-n="${n}" ${ok ? '' : 'disabled'}>${kind === 'sell' ? 'Bán' : 'Mua'} ${n} 📦 ${kind === 'sell' ? '→ +' : '← −'}🪙 ${fmt(price)}</button>`;
+  };
+  openModal('Chợ nông sản', `<div class="big">🧺</div><p>Kho: <b>${fmt(S.goods)}/${fmt(cap)}</b> 📦 · Xu: <b>${fmt(S.coins)}</b> 🪙</p>
+    <p>${row('sell', 10)}${row('sell', 50)}${row('sell', 200)}</p><p>${row('buy', 10)}${row('buy', 50)}${row('buy', 200)}</p>
+    <p class="hint">Bán hàng thừa khi kho đầy, hoặc mua gấp khi cửa hàng thiếu hàng.</p>`, true);
 }
 const rewardText = r => [r.coins && `🪙 ${fmt(r.coins)}`, r.xp && `⭐ ${r.xp} XP`, r.gems && `💎 ${r.gems}`].filter(Boolean).join(' · ');
 const questProg = q => Math.min(q.n, q.k(S));
@@ -727,15 +539,16 @@ function openExpand() {
     <button class="btn" data-do="expand" ${ok ? '' : 'disabled'}>Mở rộng</button><button class="btn alt" data-close>Để sau</button>`, true);
 }
 function openMenu() {
+  const tg = (key, on, label) => `<button class="btn alt" data-do="toggle" data-key="${key}">${on ? '✅' : '⬜'} ${label}</button>`;
   openModal('Cài đặt & Hướng dẫn', `<ul class="help">
-    <li>🏠 <b>Nhà ở</b> tăng dân số và cho thu tiền thuê định kỳ.</li>
-    <li>🌾 <b>Ruộng</b> trồng nông sản để lấy 📦 hàng hóa.</li>
-    <li>🏪 <b>Cửa hàng</b> cần hàng hóa để mở bán, bán xong thì thu xu.</li>
-    <li>🛣️ Nhà và cửa hàng phải <b>kề đường</b> mới hoạt động.</li>
-    <li>🌳 <b>Trang trí</b> và công trình công cộng tăng 😊 hạnh phúc; hạnh phúc càng cao, thu nhập càng nhiều. Trang trí còn cộng % thu nhập cho công trình xung quanh.</li>
-    <li>⚡ Mỗi thao tác (xây, thu tiền, thu hoạch…) tốn 1 năng lượng, hồi dần theo thời gian.</li>
-    <li>🖱️ Kéo để di chuyển bản đồ, lăn chuột hoặc chụm hai ngón để thu phóng.</li></ul>
-    <div class="center"><button class="btn alt" data-do="mute">${S.mute ? '🔇 Bật âm thanh' : '🔊 Tắt âm thanh'}</button>
+    <li>🏠 <b>Nhà ở</b> tăng dân số và cho thu tiền thuê định kỳ. 🏪 <b>Cửa hàng</b> cần 📦 hàng hóa để mở bán.</li>
+    <li>🌾 <b>Ruộng</b>: gieo hạt → 💧 tưới nước (lớn nhanh hơn ${WATER_BOOST * 100}%) → 🐛 bắt sâu → thu hoạch. Cây chín để quá lâu sẽ 🥀 <b>héo</b>; mưa sẽ tưới giúp bạn.</li>
+    <li>⬆️ Chọn nhà hoặc cửa hàng để <b>nâng cấp</b> (tối đa cấp ${MAX_LV}, mỗi cấp +50% thu nhập và dân số).</li>
+    <li>🧺 Chạm vào ô 📦 trên cùng để mở <b>chợ</b> mua bán hàng hóa.</li>
+    <li>🛣️ Nhà và cửa hàng phải <b>kề đường</b>. 🌳 Trang trí và công trình công cộng tăng 😊 hạnh phúc và thu nhập.</li>
+    <li>⚡ Mỗi thao tác tốn 1 năng lượng, hồi dần theo thời gian.</li>
+    <li>🎥 <b>Góc nhìn 3D</b>: kéo để di chuyển · chuột phải (hoặc Shift) + kéo để xoay/nghiêng · lăn chuột để thu phóng · trên điện thoại chụm/xoay hai ngón · phím Q/E xoay, mũi tên di chuyển.</li></ul>
+    <div class="center">${tg('sound', !S.mute, 'Âm thanh')}${tg('dayNight', S.dayNight !== false, 'Ngày và đêm')}${tg('shadows', S.shadows !== false, 'Đổ bóng')}
     <button class="btn red" data-do="reset">Chơi lại từ đầu</button></div>`);
 }
 function checkDaily() {
@@ -750,8 +563,9 @@ function checkDaily() {
     <p>🪙 ${fmt(coins)}${gems ? ' · 💎 ' + gems : ''} · ⚡ đầy năng lượng</p><button class="btn" data-close>Nhận</button>`, true);
 }
 
+let infoBtns = '';
 function updateHud() {
-  tickEnergy();
+  tickEnergy(); tickWeather();
   const need = xpNeed(S.level), max = maxEnergy(), hp = happiness();
   $('h-level').textContent = S.level;
   $('h-xp').textContent = fmt(S.xp) + '/' + fmt(need);
@@ -771,21 +585,31 @@ function updateHud() {
     tr.classList.toggle('done', done); $('q-badge').classList.toggle('hidden', !done);
   } else { tr.innerHTML = '<b>🏆 Đã xong mọi nhiệm vụ</b>'; tr.classList.remove('done'); $('q-badge').classList.add('hidden'); }
   const inf = $('info');
-  if (selected && S.buildings.includes(selected)) {
-    const d = DEFS[selected.type], st = statusOf(selected), bn = (d.cat === 'house' || d.cat === 'shop') ? decoBonus(selected) : 0;
-    inf.innerHTML = `<b>${d.name}</b><div class="sub">${st.text}${bn ? ` · Thưởng trang trí +${bn}%` : ''}</div>`;
+  if (mode.name === 'idle' && selected && S.buildings.includes(selected)) {
+    const b = selected, d = DEFS[b.type], st = statusOf(b), lv = b.lv || 1, up = d.cat === 'house' || d.cat === 'shop';
+    const bn = up ? decoBonus(b) : 0;
+    $('info-text').innerHTML = `<b>${d.name}${up ? ' ' + '⭐'.repeat(lv) : ''}</b><div class="sub">${st.text}${bn ? ` · Trang trí +${bn}%` : ''}</div>`;
+    let btns = '';
+    if (up && b.done && lv < MAX_LV) btns += `<button data-info="up" class="${S.coins < upgradeCost(b) ? 'poor' : ''}">⬆️ Nâng cấp · 🪙 ${fmt(upgradeCost(b))}</button>`;
+    btns += '<button data-info="move">✋ Di chuyển</button><button data-info="sell">🧹 Phá dỡ</button>';
+    if (btns !== infoBtns) { infoBtns = btns; $('info-btns').innerHTML = btns; }
     inf.classList.remove('hidden');
   } else inf.classList.add('hidden');
 }
 
 // ───────────────────────── Nhập liệu ─────────────────────────
-function tileAt(sx, sy) {
-  const wx = (sx - cam.x) / cam.z, wy = (sy - cam.y) / cam.z;
-  return { x: Math.floor((wx / TW + wy / TH) / 2), y: Math.floor((wy / TH - wx / TW) / 2) };
+function confirmSell(b) {
+  const d = DEFS[b.type];
+  if (b.type === 'road' || d.cost <= 100) return sell(b);
+  sellTarget = b;
+  openModal('Phá dỡ', `<p>Phá dỡ <b>${d.name}</b> và nhận lại 🪙 ${fmt(Math.floor(d.cost / 2))}?${(b.lv || 1) > 1 ? ' Tiền nâng cấp sẽ không được hoàn lại.' : ''}</p>
+    <button class="btn red" data-do="sell">Phá dỡ</button><button class="btn alt" data-close>Hủy</button>`, true);
 }
-function tap(t) {
+function tap(sx, sy) {
+  const placing = mode.name === 'place' || (mode.name === 'move' && moving);
+  const p = View.pick(sx, sy, placing), t = p.tile;
   const inside = t.x >= 0 && t.y >= 0 && t.x < WORLD && t.y < WORLD;
-  const b = inside ? grid[t.x][t.y] : null;
+  const b = p.b || (inside ? grid[t.x][t.y] : null);
   if (mode.name === 'place') {
     const d = DEFS[mode.type];
     if (inside && !unlocked(t.x, t.y)) { toast('Vùng đất này chưa mở — dùng 🗺️ Mở đất'); sfx.bad(); return; }
@@ -798,61 +622,70 @@ function tap(t) {
     if (canPlace(x, y, s)) { moving.x = x; moving.y = y; moving = null; rebuildGrid(); sfx.pop(); } else sfx.bad();
     return;
   }
-  if (mode.name === 'sell') {
-    if (!b) return;
-    const d = DEFS[b.type];
-    if (b.type === 'road' || d.cost <= 100) return sell(b);
-    sellTarget = b;
-    openModal('Phá dỡ', `<p>Phá dỡ <b>${d.name}</b> và nhận lại 🪙 ${fmt(Math.floor(d.cost / 2))}?</p>
-      <button class="btn red" data-do="sell">Phá dỡ</button><button class="btn alt" data-close>Hủy</button>`, true);
-    return;
-  }
+  if (mode.name === 'sell') { if (b) confirmSell(b); return; }
   if (!b) { selected = null; if (inside && !unlocked(t.x, t.y)) toast('Vùng đất chưa mở — dùng 🗺️ Mở đất'); return; }
   selected = b;
   act(b);
 }
-let sellTarget = null;
 
+const cv = $('game');
 const ptrs = new Map();
 let drag = null, pinch = null;
+const pinchOf = () => { const [a, b] = [...ptrs.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, a: Math.atan2(b.y - a.y, b.x - a.x) }; };
+cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('pointerdown', e => {
   cv.setPointerCapture(e.pointerId);
   ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
-  if (ptrs.size === 1) drag = { sx: e.clientX, sy: e.clientY, cx: cam.x, cy: cam.y, moved: false };
-  else if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a.x - b.x, a.y - b.y), z: cam.z }; if (drag) drag.moved = true; }
+  if (ptrs.size === 1) drag = { sx: e.clientX, sy: e.clientY, lx: e.clientX, ly: e.clientY, moved: false, rot: e.button === 2 || e.shiftKey };
+  else if (ptrs.size === 2) { pinch = pinchOf(); if (drag) drag.moved = true; }
 });
 cv.addEventListener('pointermove', e => {
   if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
   if (ptrs.size === 2 && pinch) {
-    const [a, b] = [...ptrs.values()];
-    zoomAt((a.x + b.x) / 2, (a.y + b.y) / 2, pinch.z * Math.hypot(a.x - b.x, a.y - b.y) / pinch.d);
-    return;
+    const n = pinchOf();
+    View.zoomBy(n.d / pinch.d);
+    let da = n.a - pinch.a; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI;
+    View.rotate(-da, 0);
+    pinch = n; return;
   }
   if (drag && ptrs.size === 1) {
-    const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
-    if (!drag.moved && Math.hypot(dx, dy) > 7) drag.moved = true;
-    if (drag.moved) { cam.x = drag.cx + dx; cam.y = drag.cy + dy; }
+    if (!drag.moved && Math.hypot(e.clientX - drag.sx, e.clientY - drag.sy) > 7) drag.moved = true;
+    if (drag.moved) {
+      if (drag.rot) View.rotate(-(e.clientX - drag.lx) * .008, (e.clientY - drag.ly) * .006);
+      else View.pan(drag.lx, drag.ly, e.clientX, e.clientY);
+    }
+    drag.lx = e.clientX; drag.ly = e.clientY;
   }
-  if (e.pointerType === 'mouse') hover = tileAt(e.clientX, e.clientY);
+  if (e.pointerType === 'mouse') hover = View.pick(e.clientX, e.clientY, true).tile;
 });
 function ptrEnd(e) {
   const had = ptrs.delete(e.pointerId);
   if (ptrs.size < 2) pinch = null;
   if (had && ptrs.size === 0 && drag) {
-    if (!drag.moved && e.type === 'pointerup') { const t = tileAt(e.clientX, e.clientY); hover = e.pointerType === 'mouse' ? t : null; tap(t); updateHud(); }
+    if (!drag.moved && !drag.rot && e.type === 'pointerup') {
+      if (e.pointerType !== 'mouse') hover = null;
+      tap(e.clientX, e.clientY); updateHud();
+    }
     drag = null;
-  } else if (ptrs.size === 1 && drag) { const p = [...ptrs.values()][0]; drag = { sx: p.x, sy: p.y, cx: cam.x, cy: cam.y, moved: true }; }
+  } else if (ptrs.size === 1 && drag) { const p = [...ptrs.values()][0]; drag = { sx: p.x, sy: p.y, lx: p.x, ly: p.y, moved: true, rot: false }; }
 }
 cv.addEventListener('pointerup', ptrEnd);
 cv.addEventListener('pointercancel', ptrEnd);
 cv.addEventListener('pointerleave', () => { hover = null; });
-function zoomAt(sx, sy, z) {
-  z = clamp(z, .45, 2.6);
-  cam.x = sx - (sx - cam.x) * z / cam.z; cam.y = sy - (sy - cam.y) * z / cam.z; cam.z = z;
-}
-cv.addEventListener('wheel', e => { e.preventDefault(); zoomAt(e.clientX, e.clientY, cam.z * (e.deltaY < 0 ? 1.12 : 1 / 1.12)); }, { passive: false });
-window.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); setMode('idle'); } });
+cv.addEventListener('wheel', e => { e.preventDefault(); View.zoomBy(e.deltaY < 0 ? 1.12 : 1 / 1.12); }, { passive: false });
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (k === 'escape') { closeModal(); setMode('idle'); }
+  else if (k === 'q') View.rotate(-.2, 0); else if (k === 'e') View.rotate(.2, 0);
+  else if (k === 'arrowleft' || k === 'a') View.panBy(-1, 0); else if (k === 'arrowright' || k === 'd') View.panBy(1, 0);
+  else if (k === 'arrowup' || k === 'w') View.panBy(0, 1); else if (k === 'arrowdown' || k === 's') View.panBy(0, -1);
+});
 
+$('camctl').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  ({ l: () => View.rotate(-Math.PI / 8, 0), r: () => View.rotate(Math.PI / 8, 0), up: () => View.rotate(0, .15), down: () => View.rotate(0, -.15),
+     in: () => View.zoomBy(1.25), out: () => View.zoomBy(.8), reset: () => View.resetCam() })[b.dataset.cam]();
+});
 $('toolbar').addEventListener('click', e => {
   const b = e.target.closest('button'); if (!b) return;
   const a = b.dataset.act;
@@ -862,9 +695,18 @@ $('toolbar').addEventListener('click', e => {
   else if (a === 'expand') openExpand();
   else if (a === 'menu') openMenu();
 });
+$('info-btns').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || !selected) return;
+  const t = selected;
+  if (b.dataset.info === 'up') upgrade(t);
+  else if (b.dataset.info === 'move') pickUp(t);
+  else if (b.dataset.info === 'sell') confirmSell(t);
+  updateHud(); save();
+});
 $('banner-done').addEventListener('click', () => setMode('idle'));
 $('tracker').addEventListener('click', () => { const q = QUESTS[S.quest]; if (q && questProg(q) >= q.n) claimQuest(); else openQuests(); });
 $('h-energy-pill').addEventListener('click', askEnergy);
+$('h-goods-pill').addEventListener('click', openMarket);
 $('modal').addEventListener('click', e => {
   const t = e.target;
   if (t === $('modal') || t.closest('[data-close]')) return closeModal();
@@ -876,37 +718,40 @@ $('modal').addEventListener('click', e => {
     if (S.coins < d.cost) { sfx.bad(); return toast('Không đủ xu!'); }
     closeModal(); return setMode('place', d.id);
   }
-  const crop = t.closest('[data-crop]'); if (crop && cropFarm) { const f = cropFarm; return plant(f, crop.dataset.crop); }
-  const act = t.closest('[data-do]'); if (!act || act.disabled) return;
-  switch (act.dataset.do) {
+  const crop = t.closest('[data-crop]'); if (crop && cropFarm) { plant(cropFarm, crop.dataset.crop); updateHud(); return; }
+  const el = t.closest('[data-do]'); if (!el || el.disabled) return;
+  switch (el.dataset.do) {
     case 'claim': claimQuest(); break;
     case 'refill': if (S.gems >= 3) { S.gems -= 3; S.energy = maxEnergy(); sfx.win(); closeModal(); } break;
     case 'sell': if (sellTarget && S.buildings.includes(sellTarget)) sell(sellTarget); sellTarget = null; closeModal(); break;
+    case 'clear': { const f = witherFarm; if (f && useEnergy()) { clearFarm(f); sfx.pop(); closeModal(); } break; }
+    case 'revive': { const f = witherFarm; if (f && f.crop && S.gems >= 1) { S.gems--; f.readyAt = Date.now() - 1; f.bugAt = 0; floatAt(f, '✨ Hồi sinh!', '#d8f3dc'); sfx.win(); closeModal(); } break; }
+    case 'mkt': {
+      const n = +el.dataset.n, kind = el.dataset.kind, price = Math.round(n * MARKET[kind]);
+      if (kind === 'sell' && S.goods >= n) { S.goods -= n; S.coins += price; sfx.coin(); }
+      else if (kind === 'buy' && S.coins >= price && S.goods + n <= storage()) { S.goods += n; S.coins -= price; sfx.pop(); }
+      openMarket(); break;
+    }
     case 'expand': { const x = expandInfo(); if (!x.max && S.level >= x.lvl && S.coins >= x.cost) { S.coins -= x.cost; S.land += 2; S.stats.expand++; sfx.win(); toast('Đã mở rộng đất!'); closeModal(); } break; }
-    case 'mute': S.mute = !S.mute; openMenu(); break;
+    case 'toggle': { const k = el.dataset.key; if (k === 'sound') S.mute = !S.mute; else S[k] = S[k] === false; openMenu(); break; }
     case 'reset': openModal('Chơi lại', '<p>Xóa toàn bộ thành phố và bắt đầu lại?</p><button class="btn red" data-do="reset2">Xóa và chơi lại</button><button class="btn alt" data-close>Hủy</button>', true); break;
-    case 'reset2': S = newState(); moving = null; rebuildGrid(); closeModal(); setMode('idle'); centerCam(); break;
+    case 'reset2': moving = null; S = newState(); rebuildGrid(); closeModal(); setMode('idle'); View.resetCam(); break;
   }
   updateHud(); save();
 });
 
 // ───────────────────────── Khởi động ─────────────────────────
-const ctx0 = cv.getContext('2d');
-function resize() {
-  DPR = Math.min(2, window.devicePixelRatio || 1); W = window.innerWidth; H = window.innerHeight;
-  cv.width = W * DPR; cv.height = H * DPR;
-}
-function centerCam() { cam.z = W < 600 ? .9 : 1.3; cam.x = W / 2; cam.y = H / 2 - WORLD * TH * cam.z + 10; }
-window.addEventListener('resize', resize);
-
 S = load();
 rebuildGrid();
-resize(); centerCam();
-tickEnergy();
-updateHud();
-checkDaily();
-setInterval(updateHud, 500);
-setInterval(save, 5000);
-window.addEventListener('beforeunload', save);
-document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
-(function loop() { render(); requestAnimationFrame(loop); })();
+if (!View.init(cv)) {
+  openModal('Không hỗ trợ 3D', '<p>Trình duyệt của bạn chưa bật WebGL nên không thể hiển thị thành phố 3D. Hãy thử trình duyệt khác hoặc bật tăng tốc phần cứng.</p>', true);
+} else {
+  tickEnergy();
+  updateHud();
+  checkDaily();
+  setInterval(updateHud, 500);
+  setInterval(save, 5000);
+  window.addEventListener('beforeunload', save);
+  document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+  (function loop() { View.frame(); requestAnimationFrame(loop); })();
+}
