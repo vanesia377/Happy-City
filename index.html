@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Chill City</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud">
+  <div class="pill level" title="Cấp độ">
+    <span class="lv" id="h-level">1</span>
+    <div class="bar"><div id="h-xpbar"></div><span id="h-xp">0/50</span></div>
+  </div>
+  <div class="pill" title="Xu">🪙 <b id="h-coins">0</b></div>
+  <div class="pill" title="Kim cương">💎 <b id="h-gems">0</b></div>
+  <div class="pill click" id="h-energy-pill" title="Năng lượng">⚡ <b id="h-energy">0</b><small id="h-energy-t"></small></div>
+  <div class="pill" title="Hàng hóa">📦 <b id="h-goods">0</b></div>
+  <div class="pill" title="Dân số">👥 <b id="h-pop">0</b></div>
+  <div class="pill" title="Độ hạnh phúc"><span id="h-face">😊</span> <b id="h-happy">100%</b></div>
+</div>
+
+<div id="tracker" class="click"></div>
+<div id="banner" class="hidden"><span id="banner-text"></span><button id="banner-done">Xong</button></div>
+<div id="info" class="hidden"></div>
+<div id="toasts"></div>
+
+<div id="toolbar">
+  <button data-act="shop"><i>🏗️</i>Xây dựng</button>
+  <button data-act="move"><i>✋</i>Di chuyển</button>
+  <button data-act="sell"><i>🧹</i>Phá dỡ</button>
+  <button data-act="quests"><i>📜</i>Nhiệm vụ<em id="q-badge" class="hidden">!</em></button>
+  <button data-act="expand"><i>🗺️</i>Mở đất</button>
+  <button data-act="menu"><i>⚙️</i>Cài đặt</button>
+</div>
+
+<div id="modal" class="hidden"><div id="modal-box"></div></div>
+<script src="game.js"></script>
+</body>
+</html>
